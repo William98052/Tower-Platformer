@@ -2887,6 +2887,8 @@ Code reviews during execution changed the implementation in these ways. The code
   - dash buffering
   - the upward-dash ceiling hang
   - ground momentum after a dash
+  - coyote time surviving a ground up-dash (a dash-then-jump reaches about 231 units; decide whether this is intended tech)
+  - dash speed lines (listed in spec §3.1, not built)
 - Rendering:
   - camera and device-pixel snapping
   - a devicePixelRatio change listener

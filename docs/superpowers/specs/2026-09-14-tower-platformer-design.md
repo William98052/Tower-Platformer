@@ -58,7 +58,9 @@ tests/               Vitest unit tests
 - **Logical view: 960 × 540 units**, scaled to fit the window while keeping the aspect ratio. Letterbox bars are filled with the current theme's background color. The playable width is always 960, so every player sees the same layout.
 - The world is **one continuous vertical tower**. Canvas coordinates use y-down; the displayed height is `groundY − playerY`.
 - Tower height is approximately **45,000 units**: 70 sections averaging ~640 units tall.
-- **Camera:** follows the player with smooth easing and a small look-ahead in the direction of vertical movement. It is clamped horizontally to the tower width.
+- **Camera:** follows the player with smooth easing and stays clamped to the world.
+  - At jump speeds there is no look-ahead, so ordinary jumps don't make the camera bob.
+  - During fast falls an eased fall lead cancels the follow lag and frames extra space below the player.
 
 ---
 
@@ -85,9 +87,20 @@ All numbers are **starting values to tune by feel**. Units: world units and seco
 
 - **Aiming:** arrow keys / WASD pick one of 8 directions. With no direction held, the dash goes the way the player is facing.
 - **Dash:** 720 u/s for 0.15 s, with diagonals normalized. Gravity is off during the dash. When it ends, the player keeps 60% of the dash velocity.
-- **Air dash:** 1 charge. It refills when the player lands on the ground, grabs a wall, or touches a **dash-refill crystal**.
-- **Ground dash:** 0.4 s cooldown.
-- **Visual feedback:** afterimage trail, speed lines, a small screen nudge (respects the screen-shake setting), and the player's color dims while no charge is left.
+- **Charge:** 1 charge, spent by every dash, on the ground or in the air.
+- **Refills:** the charge comes back:
+  - on the ground once the dash has ended;
+  - from a **dash-refill crystal**;
+  - while wall sliding with the charge spent. This happens at most once per wall side per airtime, so a single wall can't be dash-climbed.
+- **Ground dash:** has a 0.4 s cooldown. It ignores a downward aim and dashes horizontally instead.
+- **Neutral dash against a wall:** while airborne against a wall, a dash with no direction held goes away from the wall.
+- **Jump cancel:** jumping ends a dash. A ground jump keeps 60% of the dash's horizontal speed.
+- **Visual feedback:**
+  - afterimage trail
+  - sparks
+  - a small screen nudge (respects the screen-shake setting)
+  - the player's color dims while no charge is left
+  - speed lines are deferred
 
 ### 3.2 Feel and juice
 
