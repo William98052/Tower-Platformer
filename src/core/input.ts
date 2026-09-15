@@ -76,9 +76,11 @@ export class InputTracker {
 
   constructor(private readonly bindings: Bindings = DEFAULT_BINDINGS) {}
 
-  keyDown(code: string): void {
-    if (this.held.has(code)) return; // browser key repeat
+  /** `repeat` is the DOM event's `repeat` flag: repeats keep a key held but never count as a new press. */
+  keyDown(code: string, repeat = false): void {
+    const isNewPress = !repeat && !this.held.has(code);
     this.held.add(code);
+    if (!isNewPress) return;
     if (this.bindings.jump.includes(code)) this.pressed.add('jump');
     if (this.bindings.dash.includes(code)) this.pressed.add('dash');
   }

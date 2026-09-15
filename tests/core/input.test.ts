@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InputTracker, NO_PAD, readPad, withoutPresses } from '../../src/core/input';
+import { DEFAULT_BINDINGS, InputTracker, NO_PAD, readPad, withoutPresses } from '../../src/core/input';
 
 function pad(pressed: number[], axes: number[] = [0, 0]) {
   const buttons = Array.from({ length: 16 }, (_, i) => ({ pressed: pressed.includes(i) }));
@@ -69,6 +69,46 @@ describe('InputTracker keyboard', () => {
     expect(f.moveX).toBe(0);
     expect(f.dashPressed).toBe(false);
   });
+
+  it('re-holds a key from a repeat event after releaseAll without firing a press', () => {
+    const t = new InputTracker();
+    t.keyDown('Space');
+    t.sample();
+    t.releaseAll();
+    t.keyDown('Space', true);
+    expect(t.sample()).toMatchObject({ jump: true, jumpPressed: false });
+  });
+
+  it('a fresh press after releaseAll produces a new edge', () => {
+    const t = new InputTracker();
+    t.keyDown('Space');
+    t.sample();
+    t.releaseAll();
+    expect(t.sample().jump).toBe(false);
+    t.keyUp('Space'); // late keyup after refocus is a no-op
+    t.keyDown('Space');
+    expect(t.sample()).toMatchObject({ jump: true, jumpPressed: true });
+  });
+
+  it('a second key bound to jump fires a new press, and jump stays held until both are released', () => {
+    const t = new InputTracker();
+    t.keyDown('Space');
+    t.sample();
+    t.keyDown('KeyC');
+    expect(t.sample().jumpPressed).toBe(true);
+    t.keyUp('Space');
+    expect(t.sample().jump).toBe(true);
+    t.keyUp('KeyC');
+    expect(t.sample().jump).toBe(false);
+  });
+
+  it('honours injected bindings', () => {
+    const t = new InputTracker({ ...DEFAULT_BINDINGS, jump: ['KeyZ'] });
+    t.keyDown('Space');
+    expect(t.sample().jumpPressed).toBe(false);
+    t.keyDown('KeyZ');
+    expect(t.sample().jumpPressed).toBe(true);
+  });
 });
 
 describe('readPad', () => {
@@ -96,6 +136,15 @@ describe('InputTracker gamepad merge', () => {
     expect(t.sample(held).jumpPressed).toBe(false);
     expect(t.sample(NO_PAD).jump).toBe(false);
     expect(t.sample(held).jumpPressed).toBe(true);
+  });
+
+  it('merges keyboard and pad, detects the pad dash edge, and releases on disconnect', () => {
+    const t = new InputTracker();
+    const rb = readPad(pad([5]));
+    t.keyDown('ArrowLeft');
+    expect(t.sample(rb)).toMatchObject({ moveX: -1, dashPressed: true });
+    expect(t.sample(rb).dashPressed).toBe(false);
+    expect(t.sample(readPad(null)).dashPressed).toBe(false);
   });
 });
 
