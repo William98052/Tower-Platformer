@@ -58,13 +58,15 @@ function respawn(): void {
 }
 
 window.addEventListener('keydown', (e) => {
+  // Leave browser/OS shortcuts (Cmd+R, Ctrl+Tab, ...) alone.
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   // Debug keys toggle once per physical press, not on key repeat.
   if (!e.repeat && debug.handleKey(e.code)) return;
   if (e.code === 'KeyR') {
-    respawn();
+    if (!e.repeat) respawn();
     return;
   }
-  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  if (e.code.startsWith('Arrow') || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
   input.keyDown(e.code, e.repeat);
 });
 window.addEventListener('keyup', (e) => {
@@ -86,8 +88,9 @@ function onEvents(e: StepEvents): void {
   }
   if (e.wallJumped) {
     squash.set(0.8, 1.25);
-    const wallX = player.vx > 0 ? player.x : player.x + player.w;
-    const away = player.vx > 0 ? 0 : Math.PI;
+    // Facing points away from the wall after a wall jump (vx may have been zeroed by a collision).
+    const wallX = player.facing === 1 ? player.x : player.x + player.w;
+    const away = player.facing === 1 ? 0 : Math.PI;
     particles.burst(wallX, player.y + player.h / 2, {
       count: 8, speed: 140, color: DUST, size: 3, life: 0.35, angle: away, spread: Math.PI * 0.8,
     });
@@ -126,7 +129,8 @@ function update(frameDt: number): void {
       }
       stepCount++;
       // Global counter, not the per-frame index: keeps afterimage density the same at any refresh rate.
-      if (player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(player.x, player.y);
+      // Pre-step position so the ghost never sits ahead of the interpolated cube.
+      if (player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(prevX, prevY);
       time += STEP;
     }
   }
@@ -149,7 +153,8 @@ function render(rx: number, ry: number): void {
   drawAfterimages(ctx, afterimages, player.w, player.h, camX, camY);
   drawPlayer(ctx, { ...player, x: rx, y: ry }, squash, camX, camY, time, blurScale);
   drawParticles(ctx, particles, camX, camY);
-  debug.draw(ctx, player, room.solids, camX, camY, stepsThisFrame);
+  // Hitbox at the interpolated position so it lines up with the drawn cube.
+  debug.draw(ctx, { ...player, x: rx, y: ry }, room.solids, camX, camY, stepsThisFrame);
 }
 
 function frame(nowMs: number): void {
