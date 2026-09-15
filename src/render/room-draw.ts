@@ -1,5 +1,6 @@
 import { VIEW_H, VIEW_W } from '../core/constants';
-import type { AABB } from '../physics/aabb';
+import type { CollisionSolid } from '../physics/collision';
+import type { SurfaceType } from '../stages/types';
 
 const COLORS = {
   skyTop: '#0e1815',
@@ -16,6 +17,19 @@ const COLORS = {
 };
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
+
+const SURFACE_COLORS: Record<SurfaceType, { body: string; edge: string }> = {
+  normal: { body: '#2a3b30', edge: '#bcd98c' },
+  oneWay: { body: '#314838', edge: '#d5eba5' },
+  vine: { body: '#27452f', edge: '#8fc76b' },
+  bouncy: { body: '#53623a', edge: '#edf2a6' },
+  slopeUp: { body: '#304334', edge: '#acd47d' },
+  slopeDown: { body: '#354738', edge: '#b7da86' },
+};
+
+export function surfaceColors(surface: SurfaceType = 'normal'): { body: string; edge: string } {
+  return SURFACE_COLORS[surface];
+}
 
 /** Moss tuft height 2..5 for a tile index; Fibonacci hashing on the high bits so neighbours vary. */
 export function mossHeight(i: number): number {
@@ -84,7 +98,7 @@ function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number): voi
 
 export function drawSolids(
   ctx: CanvasRenderingContext2D,
-  solids: readonly AABB[],
+  solids: readonly CollisionSolid[],
   camX: number,
   camY: number,
   blurScale = 1,
@@ -94,7 +108,10 @@ export function drawSolids(
     const sy = s.y - camY;
     if (sx > VIEW_W || sx + s.w < 0 || sy > VIEW_H || sy + s.h < 0) continue;
 
-    const isPlatform = s.h <= 40;
+    const surface = s.surface ?? 'normal';
+    const palette = surfaceColors(surface);
+    const isSlope = surface === 'slopeUp' || surface === 'slopeDown';
+    const isPlatform = s.h <= 40 || isSlope;
     if (isPlatform) {
       const fade = ctx.createLinearGradient(0, sy + s.h, 0, sy + s.h + 22);
       fade.addColorStop(0, 'rgba(42, 59, 48, 0.55)');
@@ -103,10 +120,20 @@ export function drawSolids(
       ctx.fillRect(sx, sy + s.h, s.w, 22);
     }
 
-    ctx.fillStyle = COLORS.body;
-    ctx.fillRect(sx, sy, s.w, s.h);
-    ctx.fillStyle = COLORS.bodyShade;
-    ctx.fillRect(sx, sy + 6, s.w, s.h - 6);
+    ctx.fillStyle = palette.body;
+    if (isSlope) {
+      ctx.beginPath();
+      ctx.moveTo(sx, surface === 'slopeUp' ? sy + s.h : sy);
+      ctx.lineTo(sx + s.w, surface === 'slopeUp' ? sy : sy + s.h);
+      ctx.lineTo(sx + s.w, sy + s.h);
+      ctx.lineTo(sx, sy + s.h);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(sx, sy, s.w, s.h);
+      ctx.fillStyle = COLORS.bodyShade;
+      ctx.fillRect(sx, sy + 6, s.w, Math.max(0, s.h - 6));
+    }
 
     ctx.fillStyle = COLORS.seam;
     if (isPlatform) {
@@ -116,16 +143,37 @@ export function drawSolids(
     }
 
     ctx.save();
-    ctx.shadowColor = COLORS.edge;
+    ctx.shadowColor = palette.edge;
     ctx.shadowBlur = 8 * blurScale;
-    ctx.fillStyle = COLORS.edge;
-    ctx.fillRect(sx, sy, s.w, 3);
+    ctx.fillStyle = palette.edge;
+    if (isSlope) {
+      ctx.beginPath();
+      ctx.moveTo(sx, surface === 'slopeUp' ? sy + s.h : sy);
+      ctx.lineTo(sx + s.w, surface === 'slopeUp' ? sy : sy + s.h);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = palette.edge;
+      ctx.stroke();
+    } else {
+      ctx.fillRect(sx, sy, s.w, surface === 'oneWay' ? 5 : 3);
+    }
     ctx.restore();
 
-    ctx.fillStyle = COLORS.moss;
-    for (let k = 4; k < s.w - 4; k += 14) {
-      const h = mossHeight(Math.floor(s.x + k));
-      ctx.fillRect(sx + k, sy - h + 1, 6, h);
+    if (!isSlope) {
+      ctx.fillStyle = surface === 'bouncy' ? '#dce99a' : COLORS.moss;
+      for (let k = 4; k < s.w - 4; k += 14) {
+        const h = mossHeight(Math.floor(s.x + k));
+        ctx.fillRect(sx + k, sy - h + 1, 6, h);
+      }
+    }
+    if (surface === 'vine') {
+      ctx.strokeStyle = '#6fa453';
+      ctx.lineWidth = 3;
+      for (let y = sy + 10; y < sy + s.h; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(sx + 3, y);
+        ctx.quadraticCurveTo(sx + s.w / 2, y + 8, sx + s.w - 3, y + 14);
+        ctx.stroke();
+      }
     }
   }
 }
