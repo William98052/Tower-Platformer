@@ -58,7 +58,7 @@ export function stepPlayer(p: Player, input: InputFrame, solids: readonly AABB[]
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
   tickTimers(p, input, dt);
   applyHorizontal(p, input, dt);
-  applyGravity(p, dt);
+  applyGravity(p, input, dt);
   tryJump(p, events);
   applyJumpCut(p, input);
   moveAndResolve(p, solids, dt, events);
@@ -69,28 +69,40 @@ function applyHorizontal(p: Player, input: InputFrame, dt: number): void {
   if (input.moveX !== 0) p.facing = input.moveX;
   const target = input.moveX * C.RUN_SPEED;
   const accel = p.onGround ? (input.moveX !== 0 ? C.GROUND_ACCEL : C.GROUND_DECEL) : C.AIR_ACCEL;
-  p.vx = approach(p.vx, target, accel * dt);
+  const control = p.wallJumpLock > 0 ? C.WALL_JUMP_CONTROL : 1;
+  p.vx = approach(p.vx, target, accel * control * dt);
 }
 
-function applyGravity(p: Player, dt: number): void {
+function applyGravity(p: Player, input: InputFrame, dt: number): void {
   p.vy = Math.min(p.vy + C.GRAVITY * dt, C.MAX_FALL);
+  const sliding = !p.onGround && p.wallDir !== 0 && input.moveX === p.wallDir;
+  if (sliding && p.vy > C.WALL_SLIDE_MAX) p.vy = C.WALL_SLIDE_MAX;
 }
 
 function tickTimers(p: Player, input: InputFrame, dt: number): void {
   p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
   p.jumpBuffer = input.jumpPressed ? C.JUMP_BUFFER : Math.max(0, p.jumpBuffer - dt);
+  p.wallJumpLock = Math.max(0, p.wallJumpLock - dt);
 }
 
 function tryJump(p: Player, events: StepEvents): void {
   if (p.jumpBuffer <= 0) return;
   if (p.onGround || p.coyote > 0) {
     p.vy = -C.JUMP_VELOCITY;
-    p.jumpBuffer = 0;
-    p.coyote = 0;
     p.onGround = false;
-    p.jumping = true;
     events.jumped = true;
+  } else if (p.wallDir !== 0) {
+    p.vx = -p.wallDir * C.WALL_JUMP_X;
+    p.vy = -C.WALL_JUMP_Y;
+    p.facing = p.wallDir === 1 ? -1 : 1;
+    p.wallJumpLock = C.WALL_JUMP_LOCK;
+    events.wallJumped = true;
+  } else {
+    return;
   }
+  p.jumpBuffer = 0;
+  p.coyote = 0;
+  p.jumping = true;
 }
 
 /** Releasing jump while still rising cuts the jump short. */
