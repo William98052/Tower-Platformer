@@ -33,6 +33,9 @@ export const WALL_JUMP_Y = 820;
 export const WALL_JUMP_LOCK = 0.15;
 export const WALL_JUMP_CONTROL = 0.3;
 
+// Moss Ruins surfaces
+export const BOUNCE_VELOCITY = 1020;
+
 // Dash
 export const DASH_SPEED = 720;
 export const DASH_TIME = 0.15;

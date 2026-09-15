@@ -1,7 +1,7 @@
 import * as C from '../core/constants';
 import type { InputFrame } from '../core/input';
 import type { AABB } from './aabb';
-import { isTouching, moveAndCollide } from './collision';
+import { collisionSolidsFor, type CollisionSolid, isTouching, moveAndCollide, surfaceFloorY } from './collision';
 
 export interface Player extends AABB {
   vx: number;
@@ -67,7 +67,7 @@ export function aimDirection(moveX: number, moveY: number, facing: -1 | 1): { x:
   return { x: moveX / length, y: moveY / length };
 }
 
-export function stepPlayer(p: Player, input: InputFrame, solids: readonly AABB[], dt = C.STEP): StepEvents {
+export function stepPlayer(p: Player, input: InputFrame, solids: readonly CollisionSolid[], dt = C.STEP): StepEvents {
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
   tickTimers(p, input, dt);
   if (tryStartDash(p, input, events) || p.dashTimer > 0) {
@@ -187,19 +187,53 @@ function refillDash(p: Player, input: InputFrame): void {
   }
 }
 
-function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: StepEvents): void {
+function moveAndResolve(p: Player, solids: readonly CollisionSolid[], dt: number, events: StepEvents): void {
   const impact = p.vy;
-  const result = moveAndCollide(p, p.vx * dt, p.vy * dt, solids, C.CORNER_CORRECTION);
+  const previousBottom = p.y + p.h;
+  const dx = p.vx * dt;
+  const dy = p.vy * dt;
+  const blocking = collisionSolidsFor(p, solids, dy);
+  const result = moveAndCollide(p, dx, dy, blocking, C.CORNER_CORRECTION);
   p.x = result.x;
   p.y = result.y;
   if (result.hitX) p.vx = 0;
   if (result.hitY) p.vy = 0;
 
+  let landedOnSlope = false;
+  if (dy >= 0) {
+    const centerX = p.x + p.w / 2;
+    for (const solid of solids) {
+      if (solid.surface !== 'slopeUp' && solid.surface !== 'slopeDown') continue;
+      const floorY = surfaceFloorY(solid as import('../stages/types').SolidDef, centerX);
+      if (floorY === null) continue;
+      const nextBottom = p.y + p.h;
+      if (previousBottom <= floorY + 1 && nextBottom >= floorY) {
+        p.y = floorY - p.h;
+        p.vy = 0;
+        landedOnSlope = true;
+      }
+    }
+  }
+
   const wasOnGround = p.onGround;
-  p.onGround = isTouching(p, 0, 1, solids);
+  p.onGround = landedOnSlope || isTouching(p, 0, 1, collisionSolidsFor(p, solids, 1));
   // A fall can end exactly flush (no overlap, so no hit); don't carry fall speed while grounded.
   if (p.onGround && p.vy > 0) p.vy = 0;
   if (p.onGround) p.lastWallJumpDir = 0;
   p.wallDir = p.onGround ? 0 : isTouching(p, -1, 0, solids) ? -1 : isTouching(p, 1, 0, solids) ? 1 : 0;
   if (p.onGround && !wasOnGround) events.landed = Math.max(impact, 0);
+
+  if (p.onGround && isOnSurface(p, solids, 'bouncy')) {
+    p.vy = -C.BOUNCE_VELOCITY;
+    p.onGround = false;
+    p.jumping = false;
+  }
+}
+
+function isOnSurface(p: Player, solids: readonly CollisionSolid[], surface: CollisionSolid['surface']): boolean {
+  const foot = p.y + p.h;
+  return solids.some((solid) => solid.surface === surface
+    && p.x + p.w > solid.x
+    && p.x < solid.x + solid.w
+    && Math.abs(foot - solid.y) <= 1);
 }

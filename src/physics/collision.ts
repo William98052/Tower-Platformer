@@ -1,4 +1,7 @@
 import { type AABB, overlaps } from './aabb';
+import type { SolidDef, SurfaceType } from '../stages/types';
+
+export type CollisionSolid = AABB & { surface?: SurfaceType };
 
 export interface MoveResult {
   x: number;
@@ -79,4 +82,27 @@ function findCornerNudge(
 export function isTouching(box: AABB, offsetX: number, offsetY: number, solids: readonly AABB[]): boolean {
   const probe = { x: box.x + offsetX, y: box.y + offsetY, w: box.w, h: box.h };
   return solids.some((s) => overlaps(probe, s));
+}
+
+/** Selects solids that block this movement. One-way platforms only block a fall from above; slopes resolve separately. */
+export function collisionSolidsFor(
+  box: AABB,
+  solids: readonly CollisionSolid[],
+  dy: number,
+): CollisionSolid[] {
+  return solids.filter((solid) => {
+    if (solid.surface === 'slopeUp' || solid.surface === 'slopeDown') return false;
+    if (solid.surface !== 'oneWay') return true;
+    return dy >= 0 && box.y + box.h <= solid.y + 1;
+  });
+}
+
+/** World-space floor height at x for a rectangular ramp definition. */
+export function surfaceFloorY(solid: SolidDef, x: number): number | null {
+  if (solid.surface !== 'slopeUp' && solid.surface !== 'slopeDown') return null;
+  if (x < solid.x || x > solid.x + solid.w) return null;
+  const amount = (x - solid.x) / solid.w;
+  return solid.surface === 'slopeUp'
+    ? solid.y + solid.h * (1 - amount)
+    : solid.y + solid.h * amount;
 }
