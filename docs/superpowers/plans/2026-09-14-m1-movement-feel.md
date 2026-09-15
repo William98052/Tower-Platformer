@@ -2661,9 +2661,13 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
-  input.keyDown(e.code);
+  input.keyDown(e.code, e.repeat);
 });
-window.addEventListener('keyup', (e) => input.keyUp(e.code));
+window.addEventListener('keyup', (e) => {
+  input.keyUp(e.code);
+  // macOS drops keyup for other keys while Cmd is held; release everything so nothing sticks.
+  if (e.code.startsWith('Meta')) input.releaseAll();
+});
 window.addEventListener('blur', () => input.releaseAll());
 document.addEventListener('visibilitychange', () => {
   lastMs = 0; // avoid a huge catch-up frame when the tab comes back
