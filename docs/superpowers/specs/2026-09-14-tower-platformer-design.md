@@ -100,7 +100,7 @@ All numbers are **starting values to tune by feel**. Units: world units and seco
 | Action | Keyboard | Gamepad |
 |---|---|---|
 | Move / aim | Arrows or WASD | Left stick / D-pad |
-| Jump | Space (also W / Up) | A |
+| Jump | Space or C (W / Up only aim, so an up-dash never triggers a jump) | A |
 | Dash | Shift or X | X or RB |
 | Pause | Esc | Start |
 
