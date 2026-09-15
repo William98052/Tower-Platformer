@@ -2804,7 +2804,7 @@ Check each item; if one fails, fix it before committing (for physics bugs, add a
 - [ ] Shift / X dashes in all 8 directions with afterimages, sparks and a small shake. With no direction held, it dashes the way the cube faces.
 - [ ] Only one dash in the air; the cube dims until you land or wall-slide.
 - [ ] The 240-unit gap between the shaft exit and the next platform needs a dash.
-- [ ] Jumping up so your head just clips the edge of the overhang slides you around it.
+- [ ] Corner correction: stand under the overhang's right corner (your left edge at about x 214–219, just right of the overhang) and jump straight up or up-right; your head clips the corner and you slide around it. (Holding toward the corner cancels the nudge by design.)
 - [ ] The camera follows smoothly, shows more below when falling fast, and never shows outside the room.
 - [ ] `` ` `` shows hitboxes, FPS and state; T toggles slow motion; R respawns.
 - [ ] Resizing the window keeps the 16:9 view centered and crisp.
