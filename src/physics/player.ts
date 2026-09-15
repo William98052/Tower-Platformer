@@ -188,6 +188,10 @@ function refillDash(p: Player, input: InputFrame): void {
 }
 
 function moveAndResolve(p: Player, solids: readonly CollisionSolid[], dt: number, events: StepEvents): void {
+  if (solids.length === 0 || !('surface' in solids[0])) {
+    moveAndResolveBasic(p, solids, dt, events);
+    return;
+  }
   const impact = p.vy;
   const previousBottom = p.y + p.h;
   const dx = p.vx * dt;
@@ -228,6 +232,23 @@ function moveAndResolve(p: Player, solids: readonly CollisionSolid[], dt: number
     p.onGround = false;
     p.jumping = false;
   }
+}
+
+/** Milestone 1's allocation-free AABB path stays hot for route simulations and plain rooms. */
+function moveAndResolveBasic(p: Player, solids: readonly AABB[], dt: number, events: StepEvents): void {
+  const impact = p.vy;
+  const result = moveAndCollide(p, p.vx * dt, p.vy * dt, solids, C.CORNER_CORRECTION);
+  p.x = result.x;
+  p.y = result.y;
+  if (result.hitX) p.vx = 0;
+  if (result.hitY) p.vy = 0;
+
+  const wasOnGround = p.onGround;
+  p.onGround = isTouching(p, 0, 1, solids);
+  if (p.onGround && p.vy > 0) p.vy = 0;
+  if (p.onGround) p.lastWallJumpDir = 0;
+  p.wallDir = p.onGround ? 0 : isTouching(p, -1, 0, solids) ? -1 : isTouching(p, 1, 0, solids) ? 1 : 0;
+  if (p.onGround && !wasOnGround) events.landed = Math.max(impact, 0);
 }
 
 function isOnSurface(p: Player, solids: readonly CollisionSolid[], surface: CollisionSolid['surface']): boolean {

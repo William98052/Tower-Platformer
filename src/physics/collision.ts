@@ -90,6 +90,11 @@ export function collisionSolidsFor(
   solids: readonly CollisionSolid[],
   dy: number,
 ): CollisionSolid[] {
+  // Milestone 1 rooms contain plain AABBs. Preserve that allocation-free hot path,
+  // which is also used heavily by reachability simulations in the test suite.
+  if (solids.length === 0 || !('surface' in solids[0])) {
+    return solids as CollisionSolid[];
+  }
   return solids.filter((solid) => {
     if (solid.surface === 'slopeUp' || solid.surface === 'slopeDown') return false;
     if (solid.surface !== 'oneWay') return true;
