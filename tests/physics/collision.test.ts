@@ -113,4 +113,27 @@ describe('moveAndCollide corner correction', () => {
     const floor = { x: -100, y: 35, w: 104, h: 10 };
     expect(moveAndCollide(player, 0, 10, [floor], 6)).toEqual({ x: 0, y: 25, hitX: false, hitY: true });
   });
+
+  it('nudges when the overlap exactly equals the correction', () => {
+    const ledge = { x: -100, y: 0, w: 106, h: 10 }; // overlap 6
+    expect(moveAndCollide(player, 0, -15, [ledge], 6)).toEqual({ x: 6, y: 5, hitX: false, hitY: false });
+  });
+
+  it('does not nudge into another solid', () => {
+    const ledge = { x: -100, y: 0, w: 104, h: 10 }; // overlap 4 on the left
+    const wall = { x: 12, y: -100, w: 10, h: 200 }; // blocks x+4 at the target y
+    expect(moveAndCollide(player, 0, -15, [ledge, wall], 6)).toEqual({ x: 0, y: 10, hitX: false, hitY: true });
+  });
+
+  it('does not nudge against the direction of horizontal movement', () => {
+    const ledge = { x: 7, y: 0, w: 100, h: 10 }; // corner on the right, overlap 3 after moving
+    // Moving right by 1: box spans 1..11, overlap 4 with the ledge; a left nudge would oppose dx.
+    expect(moveAndCollide(player, 1, -15, [ledge], 6)).toEqual({ x: 1, y: 10, hitX: false, hitY: true });
+  });
+
+  it('nudges in the direction of horizontal movement', () => {
+    const ledge = { x: -100, y: 0, w: 104, h: 10 }; // corner on the left
+    // Moving right by 1: box spans 1..11, overlap 3; nudge right by 3 clears it.
+    expect(moveAndCollide(player, 1, -15, [ledge], 6)).toEqual({ x: 4, y: 5, hitX: false, hitY: false });
+  });
 });

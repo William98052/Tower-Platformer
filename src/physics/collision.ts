@@ -15,7 +15,8 @@ function solidsAt(x: number, y: number, w: number, h: number, solids: readonly A
 /**
  * Moves on X first, then Y, clamping against solids on each axis.
  * When moving up into a ceiling, tries sliding up to `cornerCorrection`
- * units sideways to clear the corner before giving up.
+ * units sideways (never against the horizontal movement) to clear the corner
+ * before giving up. Only the target position is checked for clearance.
  *
  * Assumes the box starts clear of every solid, moves less than its own size per call,
  * and solids use integer coordinates (so clamped edges compare exactly in floating point).
@@ -43,7 +44,7 @@ export function moveAndCollide(
   if (dy !== 0) {
     let blockers = solidsAt(x, y, w, h, solids);
     if (blockers.length > 0 && dy < 0 && cornerCorrection > 0) {
-      const nudge = findCornerNudge(x, y, w, h, solids, cornerCorrection);
+      const nudge = findCornerNudge(x, y, w, h, solids, cornerCorrection, dx);
       if (nudge !== 0) {
         x += nudge;
         blockers = [];
@@ -58,17 +59,19 @@ export function moveAndCollide(
   return { x, y, hitX, hitY };
 }
 
+/** Smallest sideways offset (≤ maxNudge) that clears the ceiling, never opposing horizontal movement. */
 function findCornerNudge(
   x: number,
   y: number,
   w: number,
   h: number,
   solids: readonly AABB[],
-  max: number,
+  maxNudge: number,
+  dx: number,
 ): number {
-  for (let k = 1; k <= max; k++) {
-    if (solidsAt(x + k, y, w, h, solids).length === 0) return k;
-    if (solidsAt(x - k, y, w, h, solids).length === 0) return -k;
+  for (let k = 1; k <= maxNudge; k++) {
+    if (dx >= 0 && solidsAt(x + k, y, w, h, solids).length === 0) return k;
+    if (dx <= 0 && solidsAt(x - k, y, w, h, solids).length === 0) return -k;
   }
   return 0;
 }
