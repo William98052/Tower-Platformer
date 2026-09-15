@@ -57,14 +57,26 @@ export function approach(value: number, target: number, maxDelta: number): numbe
   return value < target ? Math.min(value + maxDelta, target) : Math.max(value - maxDelta, target);
 }
 
+/** Unit dash direction from held input; falls back to facing when nothing is held. */
+export function aimDirection(moveX: number, moveY: number, facing: -1 | 1): { x: number; y: number } {
+  if (moveX === 0 && moveY === 0) return { x: facing, y: 0 };
+  const length = Math.hypot(moveX, moveY);
+  return { x: moveX / length, y: moveY / length };
+}
+
 export function stepPlayer(p: Player, input: InputFrame, solids: readonly AABB[], dt = C.STEP): StepEvents {
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
   tickTimers(p, input, dt);
-  applyHorizontal(p, input, dt);
-  applyGravity(p, input, dt);
+  if (tryStartDash(p, input, events) || p.dashTimer > 0) {
+    updateDash(p, dt);
+  } else {
+    applyHorizontal(p, input, dt);
+    applyGravity(p, input, dt);
+  }
   tryJump(p, events);
   applyJumpCut(p, input);
   moveAndResolve(p, solids, dt, events);
+  refillDash(p, input);
   return events;
 }
 
@@ -86,6 +98,7 @@ function tickTimers(p: Player, input: InputFrame, dt: number): void {
   p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
   p.jumpBuffer = input.jumpPressed ? C.JUMP_BUFFER : Math.max(0, p.jumpBuffer - dt);
   p.wallJumpLock = Math.max(0, p.wallJumpLock - dt);
+  p.dashCooldown = Math.max(0, p.dashCooldown - dt);
 }
 
 function tryJump(p: Player, events: StepEvents): void {
@@ -107,6 +120,7 @@ function tryJump(p: Player, events: StepEvents): void {
   p.jumpBuffer = 0;
   p.coyote = 0;
   p.jumping = true;
+  p.dashTimer = 0;
 }
 
 /** Releasing jump while still rising cuts the jump short. */
@@ -118,6 +132,42 @@ function applyJumpCut(p: Player, input: InputFrame): void {
     p.vy *= C.JUMP_CUT;
     p.jumping = false;
   }
+}
+
+function tryStartDash(p: Player, input: InputFrame, events: StepEvents): boolean {
+  if (!input.dashPressed || p.dashTimer > 0) return false;
+  if (p.onGround) {
+    if (p.dashCooldown > 0) return false;
+    p.dashCooldown = C.GROUND_DASH_COOLDOWN;
+  } else {
+    if (p.dashCharges <= 0) return false;
+    p.dashCharges -= 1;
+  }
+  if (input.moveX !== 0) p.facing = input.moveX;
+  // A neutral dash while touching a wall in the air goes away from the wall, not into it.
+  const neutralFacing = !p.onGround && p.wallDir !== 0 ? (p.wallDir === 1 ? -1 : 1) : p.facing;
+  const dir = aimDirection(input.moveX, input.moveY, neutralFacing);
+  p.vx = dir.x * C.DASH_SPEED;
+  p.vy = dir.y * C.DASH_SPEED;
+  p.dashTimer = C.DASH_TIME;
+  p.jumping = false;
+  events.dashed = true;
+  return true;
+}
+
+/** Holds dash velocity (no gravity) until the timer runs out, then bleeds speed. */
+function updateDash(p: Player, dt: number): void {
+  p.dashTimer = Math.max(0, p.dashTimer - dt);
+  if (p.dashTimer === 0) {
+    p.vx *= C.DASH_END_KEEP;
+    p.vy *= C.DASH_END_KEEP;
+  }
+}
+
+function refillDash(p: Player, input: InputFrame): void {
+  if (p.dashTimer > 0) return;
+  const sliding = p.wallDir !== 0 && input.moveX === p.wallDir;
+  if (p.onGround || sliding) p.dashCharges = C.AIR_DASH_CHARGES;
 }
 
 function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: StepEvents): void {
