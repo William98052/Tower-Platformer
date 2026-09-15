@@ -2663,6 +2663,7 @@ let prevY = player.y;
 let time = 0;
 let lastMs = 0;
 let stepsThisFrame = 0;
+let stepCount = 0;
 
 const DUST = '#cfe3a8';
 const SPARK = '#ffe6b0';
@@ -2740,7 +2741,9 @@ function update(frameDt: number): void {
           count: 5, speed: 90, color: DUST, size: 2.5, life: 0.3, angle: player.facing === 1 ? Math.PI : 0, spread: 1.2,
         });
       }
-      if (player.dashTimer > 0 && i % 2 === 0) afterimages.add(player.x, player.y);
+      stepCount++;
+      // Global counter, not the per-frame index: keeps afterimage density the same at any refresh rate.
+      if (player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(player.x, player.y);
       time += STEP;
     }
   }
