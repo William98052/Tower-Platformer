@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DebugOverlay, SLOW_MOTION_SCALE } from '../../src/debug/overlay';
+import { createPlayer } from '../../src/physics/player';
+
+function mockCtx() {
+  return {
+    save: vi.fn(),
+    restore: vi.fn(),
+    fillRect: vi.fn(),
+    fillText: vi.fn(),
+    strokeRect: vi.fn(),
+  } as unknown as CanvasRenderingContext2D & Record<'save' | 'fillText', ReturnType<typeof vi.fn>>;
+}
 
 describe('DebugOverlay', () => {
   it('toggles visibility with Backquote and consumes the key', () => {
@@ -29,5 +40,19 @@ describe('DebugOverlay', () => {
     expect(d.fps).toBe(3);
     d.recordFrame(1500);
     expect(d.fps).toBe(2);
+  });
+
+  it('draws nothing when hidden and not in slow motion', () => {
+    const ctx = mockCtx();
+    new DebugOverlay().draw(ctx, createPlayer(0, 0), [], 0, 0, 1);
+    expect(ctx.save).not.toHaveBeenCalled();
+  });
+
+  it('still shows a SLOW-MO badge when slow motion is on but the overlay is hidden', () => {
+    const d = new DebugOverlay();
+    d.handleKey('KeyT');
+    const ctx = mockCtx();
+    d.draw(ctx, createPlayer(0, 0), [], 0, 0, 1);
+    expect(ctx.fillText).toHaveBeenCalledWith('SLOW-MO', expect.any(Number), expect.any(Number));
   });
 });

@@ -42,7 +42,20 @@ export class DebugOverlay {
     camY: number,
     stepsThisFrame: number,
   ): void {
-    if (!this.visible) return;
+    if (!this.visible) {
+      // Slow motion must never be active invisibly.
+      if (this.slowMotion) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(8, 8, 76, 22);
+        ctx.fillStyle = '#ffd36e';
+        ctx.font = '12px ui-monospace, Menlo, monospace';
+        ctx.textBaseline = 'top';
+        ctx.fillText('SLOW-MO', 16, 13);
+        ctx.restore();
+      }
+      return;
+    }
     ctx.save();
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(120, 200, 255, 0.6)';
@@ -56,6 +69,7 @@ export class DebugOverlay {
       `vel ${player.vx.toFixed(0)}, ${player.vy.toFixed(0)}`,
       `ground ${player.onGround}  wall ${player.wallDir}`,
       `dash ${player.dashCharges}  timer ${player.dashTimer.toFixed(2)}  cd ${player.dashCooldown.toFixed(2)}`,
+      `wjLock ${player.wallJumpLock.toFixed(2)}  lastWJ ${player.lastWallJumpDir}  lastRefill ${player.lastWallRefillDir}`,
       `coyote ${player.coyote.toFixed(2)}  buffer ${player.jumpBuffer.toFixed(2)}`,
     ];
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
