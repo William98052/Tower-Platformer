@@ -109,13 +109,72 @@ describe('air dash', () => {
     stepPlayer(p, input(), [FLOOR]);
     expect(p.vy).toBe(-C.DASH_SPEED);
   });
+
+  it('dash lasts exactly DASH_TIME worth of steps', () => {
+    const p = createPlayer(0, 0);
+    stepPlayer(p, input({ dashPressed: true, moveX: 1 }), []);
+    let steps = 1;
+    while (p.dashTimer > 0 && steps < 30) {
+      stepPlayer(p, input(), []);
+      steps++;
+    }
+    expect(steps).toBe(Math.round(C.DASH_TIME / C.STEP));
+  });
+
+  it('cannot climb a single wall by repeatedly dashing up along it', () => {
+    const wall = { x: 100, y: -100000, w: 40, h: 200000 };
+    const p = createPlayer(wall.x - C.PLAYER_SIZE, 0);
+    stepPlayer(p, input({ moveX: 1 }), [wall]);
+    const startY = p.y;
+    for (let i = 0; i < 360; i++) {
+      stepPlayer(p, input({ moveX: 1, moveY: -1, dashPressed: i % 20 === 0 }), [wall]);
+    }
+    expect(startY - p.y).toBeLessThan(300);
+  });
+
+  it('landing mid-dash does not refill until the dash ends, then refills', () => {
+    const p = createPlayer(0, FLOOR_Y - 30);
+    stepPlayer(p, input({ dashPressed: true, moveX: 1, moveY: 1 }), [FLOOR]);
+    for (let i = 0; i < 8; i++) stepPlayer(p, input({ moveX: 1 }), [FLOOR]);
+    expect(p.onGround).toBe(true);
+    expect(p.dashTimer).toBeGreaterThan(0);
+    expect(p.dashCharges).toBe(0);
+    while (p.dashTimer > 0) stepPlayer(p, input({ moveX: 1 }), [FLOOR]);
+    expect(p.dashCharges).toBe(C.AIR_DASH_CHARGES);
+  });
 });
 
 describe('ground dash', () => {
-  it('does not spend the air charge', () => {
+  it('spends the charge and gets it back once the dash ends on the ground', () => {
     const p = onFloor();
     expect(stepPlayer(p, DASH, [FLOOR]).dashed).toBe(true);
+    expect(p.dashCharges).toBe(0);
+    while (p.dashTimer > 0) stepPlayer(p, input(), [FLOOR]);
     expect(p.dashCharges).toBe(C.AIR_DASH_CHARGES);
+  });
+
+  it('ignores a downward aim for a ground dash', () => {
+    const p = onFloor();
+    stepPlayer(p, input({ dashPressed: true, moveY: 1 }), [FLOOR]);
+    expect(p.vx).toBe(C.DASH_SPEED);
+    expect(p.vy).toBe(0);
+  });
+
+  it('a jump that cancels a dash keeps only the dash-end fraction of its speed', () => {
+    const p = onFloor();
+    stepPlayer(p, input({ dashPressed: true, moveX: 1 }), [FLOOR]);
+    stepPlayer(p, input({ moveX: 1, jump: true, jumpPressed: true }), [FLOOR]);
+    expect(Math.abs(p.vx)).toBeLessThanOrEqual(C.DASH_SPEED * C.DASH_END_KEEP);
+  });
+
+  it('a ground dash off a ledge does not leave an air dash available', () => {
+    const ledge = { x: -500, y: 100, w: 520, h: 40 };
+    const p = createPlayer(0, FLOOR_Y);
+    stepPlayer(p, input(), [ledge]);
+    expect(stepPlayer(p, input({ moveX: 1, dashPressed: true }), [ledge]).dashed).toBe(true);
+    for (let i = 0; i < 24; i++) stepPlayer(p, input({ moveX: 1 }), [ledge]);
+    expect(p.onGround).toBe(false);
+    expect(stepPlayer(p, input({ moveX: 1, dashPressed: true }), [ledge]).dashed).toBe(false);
   });
 
   it('has a cooldown', () => {

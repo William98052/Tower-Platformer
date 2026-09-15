@@ -20,6 +20,8 @@ export interface Player extends AABB {
   dashCharges: number;
   dashTimer: number;
   dashCooldown: number;
+  /** Wall side that already refilled the dash this airtime; resets on landing. */
+  lastWallRefillDir: -1 | 0 | 1;
 }
 
 /** What happened during one step, for effects and sound. */
@@ -50,6 +52,7 @@ export function createPlayer(x: number, y: number): Player {
     dashCharges: C.AIR_DASH_CHARGES,
     dashTimer: 0,
     dashCooldown: 0,
+    lastWallRefillDir: 0,
   };
 }
 
@@ -120,7 +123,11 @@ function tryJump(p: Player, events: StepEvents): void {
   p.jumpBuffer = 0;
   p.coyote = 0;
   p.jumping = true;
-  p.dashTimer = 0;
+  if (p.dashTimer > 0) {
+    // Cancelling a dash with a ground jump keeps the same fraction a normal dash end would.
+    if (events.jumped) p.vx *= C.DASH_END_KEEP;
+    p.dashTimer = 0;
+  }
 }
 
 /** Releasing jump while still rising cuts the jump short. */
@@ -135,18 +142,18 @@ function applyJumpCut(p: Player, input: InputFrame): void {
 }
 
 function tryStartDash(p: Player, input: InputFrame, events: StepEvents): boolean {
-  if (!input.dashPressed || p.dashTimer > 0) return false;
+  if (!input.dashPressed || p.dashTimer > 0 || p.dashCharges <= 0) return false;
   if (p.onGround) {
     if (p.dashCooldown > 0) return false;
     p.dashCooldown = C.GROUND_DASH_COOLDOWN;
-  } else {
-    if (p.dashCharges <= 0) return false;
-    p.dashCharges -= 1;
   }
+  p.dashCharges -= 1;
   if (input.moveX !== 0) p.facing = input.moveX;
   // A neutral dash while touching a wall in the air goes away from the wall, not into it.
   const neutralFacing = !p.onGround && p.wallDir !== 0 ? (p.wallDir === 1 ? -1 : 1) : p.facing;
-  const dir = aimDirection(input.moveX, input.moveY, neutralFacing);
+  // On the ground a downward aim would just stall against the floor, so dash horizontally instead.
+  const aimY = p.onGround && input.moveY > 0 ? 0 : input.moveY;
+  const dir = aimDirection(input.moveX, aimY, neutralFacing);
   p.vx = dir.x * C.DASH_SPEED;
   p.vy = dir.y * C.DASH_SPEED;
   p.dashTimer = C.DASH_TIME;
@@ -157,7 +164,8 @@ function tryStartDash(p: Player, input: InputFrame, events: StepEvents): boolean
 
 /** Holds dash velocity (no gravity) until the timer runs out, then bleeds speed. */
 function updateDash(p: Player, dt: number): void {
-  p.dashTimer = Math.max(0, p.dashTimer - dt);
+  // Snap tiny float leftovers to 0 so the dash lasts exactly DASH_TIME / STEP steps.
+  p.dashTimer = p.dashTimer - dt > 1e-9 ? p.dashTimer - dt : 0;
   if (p.dashTimer === 0) {
     p.vx *= C.DASH_END_KEEP;
     p.vy *= C.DASH_END_KEEP;
@@ -166,8 +174,17 @@ function updateDash(p: Player, dt: number): void {
 
 function refillDash(p: Player, input: InputFrame): void {
   if (p.dashTimer > 0) return;
+  if (p.onGround) {
+    p.dashCharges = C.AIR_DASH_CHARGES;
+    p.lastWallRefillDir = 0;
+    return;
+  }
+  // One refill per wall side per airtime, so dashing up a single wall can't climb forever.
   const sliding = p.wallDir !== 0 && input.moveX === p.wallDir;
-  if (p.onGround || sliding) p.dashCharges = C.AIR_DASH_CHARGES;
+  if (sliding && p.wallDir !== p.lastWallRefillDir && p.dashCharges < C.AIR_DASH_CHARGES) {
+    p.dashCharges = C.AIR_DASH_CHARGES;
+    p.lastWallRefillDir = p.wallDir;
+  }
 }
 
 function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: StepEvents): void {
