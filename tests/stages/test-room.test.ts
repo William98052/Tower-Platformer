@@ -90,6 +90,22 @@ function crossGap(startX: number, jumpAt: number, dashAt = -1, dashY: -1 | 0 = 0
   return false;
 }
 
+/** True if some start position and jump timing, running in `dir` with jump held, lands on `to` without dashing. */
+function plainJumpReaches(from: AABB, to: AABB, dir: -1 | 1): boolean {
+  for (let startX = from.x; startX <= from.x + from.w - PLAYER_SIZE; startX += 4) {
+    for (let jumpAt = 0; jumpAt <= 60; jumpAt++) {
+      const p = createPlayer(startX, from.y - PLAYER_SIZE);
+      stepPlayer(p, input(), TEST_ROOM.solids);
+      for (let t = 0; t < 240; t++) {
+        stepPlayer(p, input({ moveX: dir, jumpPressed: t === jumpAt, jump: t >= jumpAt }), TEST_ROOM.solids);
+        if (standsOn(p, to)) return true;
+        if (p.y > from.y + 200) break;
+      }
+    }
+  }
+  return false;
+}
+
 describe('TEST_ROOM dash gap', () => {
   it('cannot be jumped without a dash from any run-up, including coyote jumps', () => {
     for (let startX = EXIT.x; startX <= EXIT.x + EXIT.w - PLAYER_SIZE; startX += 4) {
@@ -122,5 +138,20 @@ describe('TEST_ROOM shaft', () => {
     }
     expect(standsOn(p, EXIT)).toBe(true);
     expect(wallJumps).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the last warm-up step is reachable from the previous one with a plain jump', () => {
+    expect(plainJumpReaches(solidAt(340, 1380), solidAt(600, 1240), 1)).toBe(true);
+  });
+
+  it('the shaft floor is reachable from the last warm-up step with a plain jump', () => {
+    expect(plainJumpReaches(solidAt(600, 1240), solidAt(844, 1220), 1)).toBe(true);
+  });
+
+  it('the pillar top joins the exit platform with no gap', () => {
+    const pillar = solidAt(760, 876);
+    expect(pillar.x + pillar.w).toBe(844);
+    expect(EXIT.y + EXIT.h).toBe(pillar.y);
+    expect(EXIT.x + EXIT.w).toBe(pillar.x + pillar.w);
   });
 });

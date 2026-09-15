@@ -23,14 +23,15 @@ export const TEST_ROOM: Room = {
     // Warm-up steps
     { x: 24, y: 1460, w: 220, h: T },
     { x: 340, y: 1380, w: 160, h: T },
-    { x: 600, y: 1300, w: 140, h: T },
+    { x: 600, y: 1240, w: 140, h: T },
 
-    // Wall-jump shaft between the pillar and the right wall (enter under the pillar)
-    { x: 820, y: 880, w: 24, h: 220 }, // pillar, bottom at 1100
+    // Wall-jump shaft between the pillar and the right wall (enter under the pillar); the
+    // pillar is wide, and its top joins the exit platform in one continuous landing
+    { x: 760, y: 876, w: 84, h: 224 }, // pillar, bottom at 1100
     { x: 844, y: 1220, w: 92, h: T }, // shaft floor
 
-    // Shaft exit, then a 240-unit gap to a platform 120 units higher that needs a dash
-    { x: 560, y: 860, w: 200, h: T },
+    // Shaft exit (runs over the pillar top), then a 240-unit gap to a platform 120 units higher that needs a dash
+    { x: 560, y: 860, w: 284, h: T },
     { x: 200, y: 740, w: 120, h: T },
 
     // Overhang for corner correction, then the upper route
