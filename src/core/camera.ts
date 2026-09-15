@@ -1,9 +1,20 @@
+import { JUMP_VELOCITY, MAX_FALL } from './constants';
+
 export const CAMERA_STIFFNESS = 8;
 export const TARGET_SCREEN_Y = 0.55;
-export const LOOK_AHEAD_TIME = 0.12;
 export const MAX_LOOK_AHEAD = 80;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+/**
+ * Extra downward framing during long falls. Zero at jump speeds (no camera bob on ordinary jumps),
+ * ramping to full strength at MAX_FALL, where it cancels the follow lag (vy / stiffness)
+ * and shows MAX_LOOK_AHEAD more units below the player.
+ */
+export function fallLead(vy: number): number {
+  const t = clamp((vy - JUMP_VELOCITY) / (MAX_FALL - JUMP_VELOCITY), 0, 1);
+  return t * (vy / CAMERA_STIFFNESS + MAX_LOOK_AHEAD);
+}
 
 export class Camera {
   /** Top-left corner of the view in world units. */
@@ -25,10 +36,13 @@ export class Camera {
 
   /** Where the camera wants to be for a target center point and vertical speed. */
   desired(targetX: number, targetY: number, targetVy: number): { x: number; y: number } {
-    const lookAhead = clamp(targetVy * LOOK_AHEAD_TIME, -MAX_LOOK_AHEAD, MAX_LOOK_AHEAD);
     return {
       x: clamp(targetX - this.viewW / 2, 0, Math.max(0, this.worldW - this.viewW)),
-      y: clamp(targetY - this.viewH * TARGET_SCREEN_Y + lookAhead, 0, Math.max(0, this.worldH - this.viewH)),
+      y: clamp(
+        targetY - this.viewH * TARGET_SCREEN_Y + fallLead(targetVy),
+        0,
+        Math.max(0, this.worldH - this.viewH),
+      ),
     };
   }
 
