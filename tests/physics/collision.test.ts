@@ -50,6 +50,16 @@ describe('moveAndCollide', () => {
     const far = { x: 18, y: -50, w: 10, h: 100 };
     expect(moveAndCollide(box, 15, 0, [far, near]).x).toBe(2);
   });
+
+  it('lands on a floor while moving diagonally, keeping horizontal motion', () => {
+    const floor = { x: -50, y: 15, w: 100, h: 10 };
+    expect(moveAndCollide(box, 4, 8, [floor])).toEqual({ x: 4, y: 5, hitX: false, hitY: true });
+  });
+
+  it('keeps falling while pressed into a wall', () => {
+    const wall = { x: 12, y: -50, w: 10, h: 100 };
+    expect(moveAndCollide(box, 5, 6, [wall])).toEqual({ x: 2, y: 6, hitX: true, hitY: false });
+  });
 });
 
 describe('isTouching', () => {
@@ -57,5 +67,21 @@ describe('isTouching', () => {
     const floor = { x: -50, y: 10, w: 100, h: 10 };
     expect(isTouching(box, 0, 1, [floor])).toBe(true);
     expect(isTouching(box, 0, -1, [floor])).toBe(false);
+  });
+
+  it('after landing, touches the floor below but does not overlap it', () => {
+    const floor = { x: -50, y: 15, w: 100, h: 10 };
+    const r = moveAndCollide(box, 0, 10, [floor]);
+    const landed = { ...box, x: r.x, y: r.y };
+    expect(isTouching(landed, 0, 1, [floor])).toBe(true);
+    expect(isTouching(landed, 0, 0, [floor])).toBe(false);
+  });
+
+  it('after hitting a right wall, touches it at +1 only', () => {
+    const wall = { x: 20, y: -50, w: 10, h: 100 };
+    const r = moveAndCollide(box, 15, 0, [wall]);
+    const stopped = { ...box, x: r.x, y: r.y };
+    expect(isTouching(stopped, 1, 0, [wall])).toBe(true);
+    expect(isTouching(stopped, -1, 0, [wall])).toBe(false);
   });
 });

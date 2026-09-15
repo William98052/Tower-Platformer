@@ -12,7 +12,12 @@ function solidsAt(x: number, y: number, w: number, h: number, solids: readonly A
   return solids.filter((s) => overlaps(probe, s));
 }
 
-/** Moves on X first, then Y, clamping against solids on each axis. */
+/**
+ * Moves on X first, then Y, clamping against solids on each axis.
+ *
+ * Assumes the box starts clear of every solid, moves less than its own size per call,
+ * and solids use integer coordinates (so clamped edges compare exactly in floating point).
+ */
 export function moveAndCollide(box: AABB, dx: number, dy: number, solids: readonly AABB[]): MoveResult {
   const { w, h } = box;
 
@@ -38,5 +43,6 @@ export function moveAndCollide(box: AABB, dx: number, dy: number, solids: readon
 }
 
 export function isTouching(box: AABB, offsetX: number, offsetY: number, solids: readonly AABB[]): boolean {
-  return solidsAt(box.x + offsetX, box.y + offsetY, box.w, box.h, solids).length > 0;
+  const probe = { x: box.x + offsetX, y: box.y + offsetY, w: box.w, h: box.h };
+  return solids.some((s) => overlaps(probe, s));
 }
