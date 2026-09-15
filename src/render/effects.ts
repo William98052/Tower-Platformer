@@ -29,6 +29,7 @@ export class Particles {
   constructor(private readonly max = 400) {}
 
   burst(x: number, y: number, o: BurstOptions, random: () => number = Math.random): void {
+    if (o.count <= 0 || o.life <= 0) return;
     for (let i = 0; i < o.count; i++) {
       if (this.list.length >= this.max) this.list.shift();
       const angle = (o.angle ?? -Math.PI / 2) + (random() - 0.5) * (o.spread ?? Math.PI * 2);
@@ -47,6 +48,7 @@ export class Particles {
   }
 
   update(dt: number, gravity = 0, drag = 3): void {
+    dt = Math.max(dt, 0);
     const friction = Math.exp(-drag * dt);
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
@@ -80,6 +82,7 @@ export class Squash {
   }
 
   update(dt: number, recover = 14): void {
+    dt = Math.max(dt, 0);
     const k = 1 - Math.exp(-recover * dt);
     this.sx += (1 - this.sx) * k;
     this.sy += (1 - this.sy) * k;
@@ -96,6 +99,7 @@ export class Afterimages {
   }
 
   update(dt: number): void {
+    dt = Math.max(dt, 0);
     for (let i = this.items.length - 1; i >= 0; i--) {
       this.items[i].life -= dt;
       if (this.items[i].life <= 0) this.items.splice(i, 1);
