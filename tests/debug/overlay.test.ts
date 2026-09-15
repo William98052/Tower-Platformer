@@ -32,6 +32,19 @@ describe('DebugOverlay', () => {
     expect(new DebugOverlay().handleKey('Space')).toBe(false);
   });
 
+  it('queues noclip, mode, and section-warp commands once', () => {
+    const d = new DebugOverlay();
+    expect(d.handleKey('KeyN')).toBe(true);
+    expect(d.handleKey('KeyM')).toBe(true);
+    expect(d.handleKey('BracketLeft')).toBe(true);
+    expect(d.handleKey('BracketRight')).toBe(true);
+    expect(d.takeCommand()).toEqual({ type: 'toggleNoclip' });
+    expect(d.takeCommand()).toEqual({ type: 'toggleMode' });
+    expect(d.takeCommand()).toEqual({ type: 'warp', delta: -1 });
+    expect(d.takeCommand()).toEqual({ type: 'warp', delta: 1 });
+    expect(d.takeCommand()).toBeNull();
+  });
+
   it('counts frames in the last second', () => {
     const d = new DebugOverlay();
     d.recordFrame(0);
@@ -54,5 +67,15 @@ describe('DebugOverlay', () => {
     const ctx = mockCtx();
     d.draw(ctx, createPlayer(0, 0), [], 0, 0, 1);
     expect(ctx.fillText).toHaveBeenCalledWith('SLOW-MO', expect.any(Number), expect.any(Number));
+  });
+
+  it('draws mode, section, and noclip status when visible', () => {
+    const d = new DebugOverlay();
+    d.handleKey('Backquote');
+    const ctx = mockCtx();
+    d.draw(ctx, createPlayer(0, 0), [], 0, 0, 1, { mode: 'hard', section: 4, noclip: true });
+    expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('mode hard'), expect.any(Number), expect.any(Number));
+    expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('section 5'), expect.any(Number), expect.any(Number));
+    expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('noclip true'), expect.any(Number), expect.any(Number));
   });
 });

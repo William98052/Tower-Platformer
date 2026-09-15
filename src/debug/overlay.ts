@@ -1,12 +1,25 @@
 import type { AABB } from '../physics/aabb';
 import type { Player } from '../physics/player';
+import type { Mode } from '../modes/run-state';
 
 export const SLOW_MOTION_SCALE = 0.25;
+
+export type DebugCommand =
+  | { type: 'toggleNoclip' }
+  | { type: 'toggleMode' }
+  | { type: 'warp'; delta: -1 | 1 };
+
+export interface DebugStatus {
+  mode: Mode;
+  section: number;
+  noclip: boolean;
+}
 
 export class DebugOverlay {
   visible = false;
   slowMotion = false;
   private frameTimes: number[] = [];
+  private commands: DebugCommand[] = [];
 
   /** Returns true if the key was a debug key and should not reach gameplay input. */
   handleKey(code: string): boolean {
@@ -18,7 +31,23 @@ export class DebugOverlay {
       this.slowMotion = !this.slowMotion;
       return true;
     }
+    if (code === 'KeyN') {
+      this.commands.push({ type: 'toggleNoclip' });
+      return true;
+    }
+    if (code === 'KeyM') {
+      this.commands.push({ type: 'toggleMode' });
+      return true;
+    }
+    if (code === 'BracketLeft' || code === 'BracketRight') {
+      this.commands.push({ type: 'warp', delta: code === 'BracketLeft' ? -1 : 1 });
+      return true;
+    }
     return false;
+  }
+
+  takeCommand(): DebugCommand | null {
+    return this.commands.shift() ?? null;
   }
 
   get timeScale(): number {
@@ -41,6 +70,7 @@ export class DebugOverlay {
     camX: number,
     camY: number,
     stepsThisFrame: number,
+    status?: DebugStatus,
   ): void {
     if (!this.visible) {
       // Slow motion must never be active invisibly.
@@ -72,6 +102,7 @@ export class DebugOverlay {
       `wjLock ${player.wallJumpLock.toFixed(2)}  lastWJ ${player.lastWallJumpDir}  lastRefill ${player.lastWallRefillDir}`,
       `coyote ${player.coyote.toFixed(2)}  buffer ${player.jumpBuffer.toFixed(2)}`,
     ];
+    if (status) lines.push(`mode ${status.mode}  section ${status.section + 1}  noclip ${status.noclip}`);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(8, 8, 320, 12 + lines.length * 16);
     ctx.fillStyle = '#e8f4ff';
