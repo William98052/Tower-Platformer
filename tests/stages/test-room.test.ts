@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { MIN_SOLID_THICKNESS, PLAYER_SIZE } from '../../src/core/constants';
-import { overlaps } from '../../src/physics/aabb';
-import { createPlayer, stepPlayer } from '../../src/physics/player';
+import { type AABB, overlaps } from '../../src/physics/aabb';
+import { createPlayer, type Player, stepPlayer } from '../../src/physics/player';
 import { TEST_ROOM } from '../../src/stages/test-room';
 import { input } from '../helpers/input';
+
+const solidAt = (x: number, y: number): AABB => {
+  const s = TEST_ROOM.solids.find((o) => o.x === x && o.y === y);
+  if (!s) throw new Error(`no solid at ${x},${y}`);
+  return s;
+};
+
+/** Standing on `s`; tolerates the <1 unit hover that the 1-unit ground probe reports as grounded. */
+function standsOn(p: Player, s: AABB): boolean {
+  return p.onGround && Math.abs(p.y + p.h - s.y) < 1 && p.x < s.x + s.w && p.x + p.w > s.x;
+}
 
 describe('TEST_ROOM', () => {
   it('keeps every solid inside the world bounds', () => {
@@ -36,42 +47,80 @@ describe('TEST_ROOM', () => {
     for (let i = 0; i < 120; i++) stepPlayer(p, input(), TEST_ROOM.solids);
     expect(p.onGround).toBe(true);
   });
+
+  it('is fully enclosed, so the player cannot leave the world', () => {
+    const { width, height, solids } = TEST_ROOM;
+    const covered = (x: number, y: number, w: number, h: number) =>
+      solids.some((s) => s.x <= x && s.y <= y && s.x + s.w >= x + w && s.y + s.h >= y + h);
+    expect(covered(0, 0, width, 1), 'ceiling').toBe(true);
+    expect(covered(0, height - 1, width, 1), 'floor').toBe(true);
+    for (let y = 0; y < height; y += 10) {
+      expect(covered(0, y, 1, 1), `left edge at y ${y}`).toBe(true);
+      expect(covered(width - 1, y, 1, 1), `right edge at y ${y}`).toBe(true);
+    }
+  });
 });
 
+const EXIT = solidAt(560, 860);
+const TARGET = solidAt(200, 740);
+
 /**
- * Starts standing on the shaft-exit platform (top y 860) and runs left toward the
- * dash-gap platform (x 200..320, top y 760). Jumps at step `jumpAt` (holding jump),
- * optionally dashes at step `dashAt` aimed left plus `dashY`. Returns true on landing on it.
+ * Starts standing on the shaft-exit platform at `startX` and runs left toward the dash-gap target.
+ * Jumps at step `jumpAt` (holding jump); optionally dashes at `dashAt` aimed left plus `dashY`.
  */
-function crossGap(jumpAt: number, dashAt: number, dashY: -1 | 0): boolean {
-  const p = createPlayer(720, 860 - PLAYER_SIZE);
+function crossGap(startX: number, jumpAt: number, dashAt = -1, dashY: -1 | 0 = 0): boolean {
+  const p = createPlayer(startX, EXIT.y - PLAYER_SIZE);
   stepPlayer(p, input(), TEST_ROOM.solids);
   for (let t = 0; t < 400; t++) {
+    const dash = t === dashAt;
     stepPlayer(
       p,
       input({
         moveX: -1,
-        moveY: t === dashAt ? dashY : 0,
+        moveY: dash ? dashY : 0,
         jumpPressed: t === jumpAt,
         jump: t >= jumpAt,
-        dashPressed: t === dashAt,
+        dashPressed: dash,
       }),
       TEST_ROOM.solids,
     );
-    if (p.onGround && p.y === 760 - PLAYER_SIZE && p.x < 320) return true;
-    if (p.y > 900) return false;
+    if (standsOn(p, TARGET)) return true;
+    if (p.y > EXIT.y + 40) return false;
   }
   return false;
 }
 
 describe('TEST_ROOM dash gap', () => {
-  it('cannot be jumped without a dash', () => {
-    for (let jumpAt = 40; jumpAt < 90; jumpAt++) {
-      expect(crossGap(jumpAt, -1, 0), `jump at ${jumpAt}`).toBe(false);
+  it('cannot be jumped without a dash from any run-up, including coyote jumps', () => {
+    for (let startX = EXIT.x; startX <= EXIT.x + EXIT.w - PLAYER_SIZE; startX += 4) {
+      for (let jumpAt = 0; jumpAt <= 100; jumpAt++) {
+        expect(crossGap(startX, jumpAt), `start ${startX} jump ${jumpAt}`).toBe(false);
+      }
     }
   });
 
   it('can be crossed with a jump and an air dash', () => {
-    expect(crossGap(68, 68 + 40, -1)).toBe(true);
+    expect(crossGap(720, 68, 108, -1)).toBe(true);
+  });
+});
+
+describe('TEST_ROOM shaft', () => {
+  it('is climbable by alternating wall jumps and exits onto the exit platform', () => {
+    const p = createPlayer(900, solidAt(844, 1220).y - PLAYER_SIZE);
+    stepPlayer(p, input(), TEST_ROOM.solids);
+    let toward: -1 | 1 = 1;
+    let wallJumps = 0;
+    let airborne = false;
+    let landed = false;
+    for (let t = 0; t < 600 && !landed; t++) {
+      const onWall = p.wallDir === toward;
+      if (onWall) toward = toward === 1 ? -1 : 1;
+      const e = stepPlayer(p, input({ moveX: toward, jump: true, jumpPressed: t === 0 || onWall }), TEST_ROOM.solids);
+      if (e.wallJumped) wallJumps++;
+      if (!p.onGround) airborne = true;
+      landed = airborne && p.onGround;
+    }
+    expect(standsOn(p, EXIT)).toBe(true);
+    expect(wallJumps).toBeGreaterThanOrEqual(2);
   });
 });

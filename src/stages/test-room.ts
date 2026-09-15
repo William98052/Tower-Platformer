@@ -14,10 +14,11 @@ export const TEST_ROOM: Room = {
   height: 1620,
   spawn: { x: 80, y: 1540 },
   solids: [
-    // Shell
+    // Shell (enclosed, so the player can never leave the world)
+    { x: 0, y: 0, w: 960, h: 24 }, // ceiling
     { x: 0, y: 1580, w: 960, h: 40 }, // floor
-    { x: 0, y: 0, w: 24, h: 1580 }, // left wall
-    { x: 936, y: 0, w: 24, h: 1580 }, // right wall
+    { x: 0, y: 24, w: 24, h: 1556 }, // left wall
+    { x: 936, y: 24, w: 24, h: 1556 }, // right wall
 
     // Warm-up steps
     { x: 24, y: 1460, w: 220, h: T },
@@ -28,9 +29,9 @@ export const TEST_ROOM: Room = {
     { x: 820, y: 880, w: 24, h: 220 }, // pillar, bottom at 1100
     { x: 844, y: 1220, w: 92, h: T }, // shaft floor
 
-    // Shaft exit, then a 240-unit gap to a platform 100 units higher that needs a dash
+    // Shaft exit, then a 240-unit gap to a platform 120 units higher that needs a dash
     { x: 560, y: 860, w: 200, h: T },
-    { x: 200, y: 760, w: 120, h: T },
+    { x: 200, y: 740, w: 120, h: T },
 
     // Overhang for corner correction, then the upper route
     { x: 120, y: 620, w: 100, h: T },
