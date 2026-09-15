@@ -78,7 +78,7 @@ All numbers are **starting values to tune by feel**. Units: world units and seco
 | Coyote time | 0.10 s |
 | Jump buffer | 0.12 s |
 | Wall slide max speed | 160 u/s |
-| Wall jump | 330 u/s away from wall, 820 u/s upward, 0.15 s of reduced air control |
+| Wall jump | 330 u/s away from wall, 820 u/s upward, 0.15 s of reduced air control (ground control unaffected). The same wall side can't be wall-jumped twice in a row until landing, so shafts need both walls and single tall walls can't be climbed |
 | Corner correction | up to 6 u nudge around ceiling and ledge corners |
 
 ### 3.1 Dash (8-directional)
