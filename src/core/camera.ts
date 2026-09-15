@@ -2,18 +2,19 @@ import { JUMP_VELOCITY, MAX_FALL } from './constants';
 
 export const CAMERA_STIFFNESS = 8;
 export const TARGET_SCREEN_Y = 0.55;
-export const MAX_LOOK_AHEAD = 80;
+/** Extra units framed below the player at full fall lead (on top of cancelling the follow lag). */
+export const FALL_LEAD_EXTRA = 80;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 /**
  * Extra downward framing during long falls. Zero at jump speeds (no camera bob on ordinary jumps),
  * ramping to full strength at MAX_FALL, where it cancels the follow lag (vy / stiffness)
- * and shows MAX_LOOK_AHEAD more units below the player.
+ * and shows FALL_LEAD_EXTRA more units below the player.
  */
 export function fallLead(vy: number): number {
   const t = clamp((vy - JUMP_VELOCITY) / (MAX_FALL - JUMP_VELOCITY), 0, 1);
-  return t * (vy / CAMERA_STIFFNESS + MAX_LOOK_AHEAD);
+  return t * (vy / CAMERA_STIFFNESS + FALL_LEAD_EXTRA);
 }
 
 export class Camera {

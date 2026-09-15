@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Camera, CAMERA_STIFFNESS, fallLead, MAX_LOOK_AHEAD } from '../../src/core/camera';
+import { Camera, CAMERA_STIFFNESS, fallLead, FALL_LEAD_EXTRA } from '../../src/core/camera';
 
 const make = () => new Camera(960, 540, 2000, 2000);
 
@@ -47,8 +47,8 @@ describe('Camera', () => {
   it('leads ahead of a max-speed fall by the follow lag plus the look-ahead', () => {
     expect(fallLead(0)).toBe(0);
     expect(fallLead(900)).toBe(0);
-    expect(fallLead(1200)).toBeCloseTo(1200 / CAMERA_STIFFNESS + MAX_LOOK_AHEAD, 6);
-    expect(fallLead(1050)).toBeCloseTo(0.5 * (1050 / CAMERA_STIFFNESS + MAX_LOOK_AHEAD), 6);
+    expect(fallLead(1200)).toBeCloseTo(1200 / CAMERA_STIFFNESS + FALL_LEAD_EXTRA, 6);
+    expect(fallLead(1050)).toBeCloseTo(0.5 * (1050 / CAMERA_STIFFNESS + FALL_LEAD_EXTRA), 6);
   });
 
   it('shows more below the player than the resting framing during a long fall', () => {
