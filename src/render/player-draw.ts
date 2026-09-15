@@ -13,6 +13,8 @@ export function drawPlayer(
   camX: number,
   camY: number,
   t: number,
+  /** blurScale: canvas shadowBlur ignores transforms, so pass the device-pixel scale to keep the glow size constant. */
+  blurScale = 1,
 ): void {
   // Dimmed when airborne with no dash left, so the player can read their charge.
   const tired = !p.onGround && p.dashCharges === 0 && p.dashTimer === 0;
@@ -26,6 +28,7 @@ export function drawPlayer(
   // Scarf trails behind, pulled by velocity.
   const ax = cx - p.facing * (w / 2 - 3);
   const ay = top + h * 0.55;
+  ctx.save();
   ctx.strokeStyle = '#e2596a';
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
@@ -39,11 +42,12 @@ export function drawPlayer(
     );
   }
   ctx.stroke();
+  ctx.restore();
 
   // Body with glow
   ctx.save();
   ctx.shadowColor = tired ? 'rgba(200, 180, 140, 0.35)' : 'rgba(255, 215, 140, 0.85)';
-  ctx.shadowBlur = tired ? 8 : 20;
+  ctx.shadowBlur = (tired ? 8 : 20) * blurScale;
   ctx.fillStyle = tired ? '#b8a57f' : '#f3d9a0';
   ctx.beginPath();
   ctx.roundRect(left, top, w, h, 4);
@@ -55,7 +59,9 @@ export function drawPlayer(
   ctx.roundRect(left, top, w, Math.max(4, h * 0.2), [4, 4, 0, 0]);
   ctx.fill();
   ctx.fillStyle = tired ? '#a08e6a' : '#e0bf7f';
-  ctx.fillRect(left, bottom - 4, w, 4);
+  ctx.beginPath();
+  ctx.roundRect(left, bottom - 4, w, 4, [0, 0, 4, 4]);
+  ctx.fill();
 
   // Eye looks where you're going and blinks every few seconds.
   const eyeH = t % 3.4 < 0.12 ? 1.5 : 7;

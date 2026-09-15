@@ -17,6 +17,11 @@ const COLORS = {
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
 
+/** Moss tuft height 2..5 for a tile index; Fibonacci hashing on the high bits so neighbours vary. */
+export function mossHeight(i: number): number {
+  return 2 + (Math.imul(i, 0x9e3779b1) >>> 30);
+}
+
 /** Calls `draw` for every tile of a w×h grid scrolled by (offX, offY) that touches the view. */
 function tile(offX: number, offY: number, w: number, h: number, draw: (x: number, y: number) => void): void {
   const startX = -mod(offX, w) - w;
@@ -52,6 +57,7 @@ function drawRuin(ctx: CanvasRenderingContext2D, x: number, y: number): void {
 function drawVines(ctx: CanvasRenderingContext2D, x: number, y: number, t: number): void {
   ctx.fillStyle = COLORS.mid;
   ctx.fillRect(x + 140, y + 220, 44, 200); // broken pillar
+  ctx.save();
   ctx.strokeStyle = COLORS.vine;
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
@@ -63,6 +69,7 @@ function drawVines(ctx: CanvasRenderingContext2D, x: number, y: number, t: numbe
     ctx.quadraticCurveTo(baseX + sway * 10, y + 60, baseX + sway * 4, y + 120 + k * 30);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number): void {
@@ -75,7 +82,13 @@ function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number): voi
   }
 }
 
-export function drawSolids(ctx: CanvasRenderingContext2D, solids: readonly AABB[], camX: number, camY: number): void {
+export function drawSolids(
+  ctx: CanvasRenderingContext2D,
+  solids: readonly AABB[],
+  camX: number,
+  camY: number,
+  blurScale = 1,
+): void {
   for (const s of solids) {
     const sx = s.x - camX;
     const sy = s.y - camY;
@@ -104,14 +117,14 @@ export function drawSolids(ctx: CanvasRenderingContext2D, solids: readonly AABB[
 
     ctx.save();
     ctx.shadowColor = COLORS.edge;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 8 * blurScale;
     ctx.fillStyle = COLORS.edge;
     ctx.fillRect(sx, sy, s.w, 3);
     ctx.restore();
 
     ctx.fillStyle = COLORS.moss;
     for (let k = 4; k < s.w - 4; k += 14) {
-      const h = 2 + (Math.floor(s.x + k) * 7) % 4;
+      const h = mossHeight(Math.floor(s.x + k));
       ctx.fillRect(sx + k, sy - h + 1, 6, h);
     }
   }
