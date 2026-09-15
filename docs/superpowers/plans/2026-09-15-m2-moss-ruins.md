@@ -32,7 +32,7 @@
 **Interfaces:**
 - Produces: `SurfaceType`, `SolidDef`, `EntityDef`, `SectionDef`, `ThemeDef`, `StageDef`, `WorldSection`, `World`, `buildWorld(stage)`, `validateStage(stage)`, `activeSections(world, cameraY, viewHeight)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -71,9 +71,9 @@ describe('activeSections', () => {
 });
 ```
 
-- [ ] **Step 2: Run `npx vitest run tests/stages/world.test.ts` and verify module-resolution failure.**
+- [x] **Step 2: Run `npx vitest run tests/stages/world.test.ts` and verify module-resolution failure.**
 
-- [ ] **Step 3: Implement the contracts and world builder**
+- [x] **Step 3: Implement the contracts and world builder**
 
 ```ts
 export type SurfaceType = 'normal' | 'oneWay' | 'vine' | 'bouncy' | 'slopeUp' | 'slopeDown';
@@ -88,8 +88,8 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 
 `buildWorld` computes each section top as `totalHeight - cumulativeHeight`, translates checkpoints, solids, and entities once, and returns a flat collision list plus section bounds. `activeSections` selects camera-overlapping section indices and expands the minimum/maximum by one. `validateStage` checks seven sections for production stages, positive heights, checkpoints inside local bounds, integer solids at least 12 units thick, and entity-specific ranges (`launch` 700–1300).
 
-- [ ] **Step 4: Run the test and `npm run typecheck`; expect PASS.**
-- [ ] **Step 5: Commit with `feat: add stacked stage data model`.**
+- [x] **Step 4: Run the test and `npm run typecheck`; expect PASS.**
+- [x] **Step 5: Commit with `feat: add stacked stage data model`.**
 
 ---
 
@@ -105,11 +105,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 - Consumes: `SolidDef`, `SurfaceType`.
 - Produces: `collisionSolidsFor(player, solids, dy)`, `applySurfaceEffects(player, solids, input)`; `stepPlayer` accepts `readonly SolidDef[]` while remaining structurally compatible with existing AABBs.
 
-- [ ] **Step 1: Write failing tests proving:** one-way platforms stop a descending player but not a rising player; vine contact caps downward speed while holding toward it; bouncy surfaces launch at `BOUNCE_VELOCITY`; each slope returns a floor height that changes linearly across its width.
-- [ ] **Step 2: Run `npx vitest run tests/physics/surfaces.test.ts`; expect missing exports.**
-- [ ] **Step 3: Implement** `surfaceAtX(solid, playerCenterX)` and filter one-way solids unless the player's previous bottom is at or above the platform top and `dy >= 0`. Treat vine rectangles as wall contacts, bouncy rectangles as normal collision followed by `vy = -BOUNCE_VELOCITY`, and resolve slopes by placing the player's bottom on the sampled ramp height only while descending.
-- [ ] **Step 4: Run all physics tests; expect the existing movement suite plus new surface tests to pass.**
-- [ ] **Step 5: Commit with `feat: add Moss Ruins surface physics`.**
+- [x] **Step 1: Write failing tests proving:** one-way platforms stop a descending player but not a rising player; vine contact caps downward speed while holding toward it; bouncy surfaces launch at `BOUNCE_VELOCITY`; each slope returns a floor height that changes linearly across its width.
+- [x] **Step 2: Run `npx vitest run tests/physics/surfaces.test.ts`; expect missing exports.**
+- [x] **Step 3: Implement** `surfaceAtX(solid, playerCenterX)` and filter one-way solids unless the player's previous bottom is at or above the platform top and `dy >= 0`. Treat vine rectangles as wall contacts, bouncy rectangles as normal collision followed by `vy = -BOUNCE_VELOCITY`, and resolve slopes by placing the player's bottom on the sampled ramp height only while descending.
+- [x] **Step 4: Run all physics tests; expect the existing movement suite plus new surface tests to pass.**
+- [x] **Step 5: Commit with `feat: add Moss Ruins surface physics`.**
 
 ---
 
@@ -124,11 +124,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `CollisionResult = { kind: 'none' } | { kind: 'launch'; velocityY: number } | { kind: 'prompt'; id: PromptId }`; `Entity` with `bounds`, `update`, `draw`, `collide`, `reset`; `createEntities(section)`.
 
-- [ ] **Step 1: Write failing tests** that a mushroom launches only when the player overlaps its cap while descending, that `reset()` restores its compression, and that prompt triggers return their ID without becoming solid.
-- [ ] **Step 2: Run `npx vitest run tests/entities/entities.test.ts`; expect missing modules.**
-- [ ] **Step 3: Implement a periodic mushroom squash animation from global `t`, collision using AABB overlap, and stateless prompt trigger entities.**
-- [ ] **Step 4: Run the entity and world suites; expect PASS.**
-- [ ] **Step 5: Commit with `feat: add activated Moss Ruins entities`.**
+- [x] **Step 1: Write failing tests** that a mushroom launches only when the player overlaps its cap while descending, that `reset()` restores its compression, and that prompt triggers return their ID without becoming solid.
+- [x] **Step 2: Run `npx vitest run tests/entities/entities.test.ts`; expect missing modules.**
+- [x] **Step 3: Implement a periodic mushroom squash animation from global `t`, collision using AABB overlap, and stateless prompt trigger entities.**
+- [x] **Step 4: Run the entity and world suites; expect PASS.**
+- [x] **Step 5: Commit with `feat: add activated Moss Ruins entities`.**
 
 ---
 
@@ -142,11 +142,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `Mode = 'normal' | 'hard'`; `RunState` containing checkpoint, falls, elapsed, bestY, peakSinceLanding, stun, invulnerability; `createRunState`; `stepRunTimers`; `activateCheckpoint`; `shouldRespawnForFall`; `hitHazard`; `recordLanding`.
 
-- [ ] **Step 1: Write failing tests** for Normal checkpoint activation and 540-unit fall respawn, Normal hazard respawn, Hard hazard knockback/stun/invulnerability, ignored repeated Hard hits during invulnerability, timer advancement, best-height tracking, and one fall counted after a 400-unit descent.
-- [ ] **Step 2: Run `npx vitest run tests/modes/rules.test.ts`; expect missing modules.**
-- [ ] **Step 3: Implement pure transitions.** `hitHazard` returns `{ respawn: true }` in Normal; in Hard it mutates velocity away from the hazard center, sets `vy = -300`, `stun = 0.4`, `invulnerability = 0.6`, and increments falls once. `recordLanding` compares landing y against `peakSinceLanding + 400` before resetting the peak.
-- [ ] **Step 4: Run the mode suite; expect PASS.**
-- [ ] **Step 5: Commit with `feat: add Normal and Hard run rules`.**
+- [x] **Step 1: Write failing tests** for Normal checkpoint activation and 540-unit fall respawn, Normal hazard respawn, Hard hazard knockback/stun/invulnerability, ignored repeated Hard hits during invulnerability, timer advancement, best-height tracking, and one fall counted after a 400-unit descent.
+- [x] **Step 2: Run `npx vitest run tests/modes/rules.test.ts`; expect missing modules.**
+- [x] **Step 3: Implement pure transitions.** `hitHazard` returns `{ respawn: true }` in Normal; in Hard it mutates velocity away from the hazard center, sets `vy = -300`, `stun = 0.4`, `invulnerability = 0.6`, and increments falls once. `recordLanding` compares landing y against `peakSinceLanding + 400` before resetting the peak.
+- [x] **Step 4: Run the mode suite; expect PASS.**
+- [x] **Step 5: Commit with `feat: add Normal and Hard run rules`.**
 
 ---
 
@@ -161,11 +161,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `PromptId`, `PromptState`, `showPrompt`, `completePromptsFromEvents`, `promptCopy`; `StageBanner` with `enter`, `update`, `offsetX`, `visible`.
 
-- [ ] **Step 1: Write failing tests** proving a prompt shows once, completes on the matching movement event, cannot reappear during the run, and maps to exact copy: `Jump — Space / C`, `Wall jump — Hold toward wall + Space / C`, `Dash — Shift / X`. Test banner re-entry, 0.35 s slide-in, 2.5 s hold, 0.35 s slide-out, and hidden end state.
-- [ ] **Step 2: Run both UI tests; expect missing modules.**
-- [ ] **Step 3: Implement pure prompt and banner state machines with eased offsets.**
-- [ ] **Step 4: Run the UI suites; expect PASS.**
-- [ ] **Step 5: Commit with `feat: add move prompts and stage banner state`.**
+- [x] **Step 1: Write failing tests** proving a prompt shows once, completes on the matching movement event, cannot reappear during the run, and maps to exact copy: `Jump — Space / C`, `Wall jump — Hold toward wall + Space / C`, `Dash — Shift / X`. Test banner re-entry, 0.35 s slide-in, 2.5 s hold, 0.35 s slide-out, and hidden end state.
+- [x] **Step 2: Run both UI tests; expect missing modules.**
+- [x] **Step 3: Implement pure prompt and banner state machines with eased offsets.**
+- [x] **Step 4: Run the UI suites; expect PASS.**
+- [x] **Step 5: Commit with `feat: add move prompts and stage banner state`.**
 
 ---
 
@@ -178,9 +178,9 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `STAGE_01_MOSS: StageDef` with seven 640–760-unit sections.
 
-- [ ] **Step 1: Write failing tests** for exactly seven sections, valid data, at least one signature mechanic per section, all checkpoints clear of solids, a continuous shell, integer coordinates, and escalating route bounds. Add reachability envelopes: ordinary vertical gaps ≤170, dash gaps ≤290, and wall-jump shafts 70–150 units wide.
-- [ ] **Step 2: Run `npx vitest run tests/stages/stage01-moss.test.ts`; expect missing module.**
-- [ ] **Step 3: Author these routes:**
+- [x] **Step 1: Write failing tests** for exactly seven sections, valid data, at least one signature mechanic per section, all checkpoints clear of solids, a continuous shell, integer coordinates, and escalating route bounds. Add reachability envelopes: ordinary vertical gaps ≤170, dash gaps ≤290, and wall-jump shafts 70–150 units wide.
+- [x] **Step 2: Run `npx vitest run tests/stages/stage01-moss.test.ts`; expect missing module.**
+- [x] **Step 3: Author these routes:**
   1. broken stair ascent teaching jump, with safe mushroom introduction;
   2. two-wall vine shaft teaching wall jump;
   3. one-way canopy switchbacks;
@@ -188,8 +188,8 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
   5. first required horizontal dash gap with a safe catch floor;
   6. combined vine shaft, one-way landings, and diagonal dash;
   7. finale chaining mushroom launch, wall jump, slope, and dash to the exit platform.
-- [ ] **Step 4: Run the stage tests and typecheck; expect PASS.**
-- [ ] **Step 5: Commit with `feat: build all seven Moss Ruins sections`.**
+- [x] **Step 4: Run the stage tests and typecheck; expect PASS.**
+- [x] **Step 5: Commit with `feat: build all seven Moss Ruins sections`.**
 
 ---
 
@@ -206,11 +206,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `formatTime(seconds)`, `progressRatio(playerY, worldHeight)`, and Canvas draw functions for world surfaces, checkpoint flags, entities, HUD, prompt cards, and banner.
 
-- [ ] **Step 1: Write failing pure tests** for timer formatting (`0 → 00:00.000`, `65.432 → 01:05.432`), progress clamping, and deterministic moss detail. Extend room-draw tests for every surface palette lookup.
-- [ ] **Step 2: Run the render/UI tests; expect missing exports.**
-- [ ] **Step 3: Implement rendering** with three Moss Ruins parallax layers, surface-specific readable decoration, glowing checkpoint flags, animated mushrooms, a left tower bar with stage tick/player dot, timer/falls top-right, stage name bottom-left, centered prompt card, and side-sliding banner.
-- [ ] **Step 4: Run render/UI tests and typecheck; expect PASS.**
-- [ ] **Step 5: Commit with `feat: render Moss Ruins and gameplay HUD`.**
+- [x] **Step 1: Write failing pure tests** for timer formatting (`0 → 00:00.000`, `65.432 → 01:05.432`), progress clamping, and deterministic moss detail. Extend room-draw tests for every surface palette lookup.
+- [x] **Step 2: Run the render/UI tests; expect missing exports.**
+- [x] **Step 3: Implement rendering** with three Moss Ruins parallax layers, surface-specific readable decoration, glowing checkpoint flags, animated mushrooms, a left tower bar with stage tick/player dot, timer/falls top-right, stage name bottom-left, centered prompt card, and side-sliding banner.
+- [x] **Step 4: Run render/UI tests and typecheck; expect PASS.**
+- [x] **Step 5: Commit with `feat: render Moss Ruins and gameplay HUD`.**
 
 ---
 
@@ -223,11 +223,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `DebugCommand = { type: 'toggleNoclip' } | { type: 'toggleMode' } | { type: 'warp'; delta: -1 | 1 }`; `takeCommand()`.
 
-- [ ] **Step 1: Add failing tests** for `N` noclip, `M` mode toggle, `[` previous section, `]` next section, edge-triggered command consumption, and overlay labels for mode/section/noclip.
-- [ ] **Step 2: Run `npx vitest run tests/debug/overlay.test.ts`; expect failures.**
-- [ ] **Step 3: Implement command queueing without changing Backquote or T behavior.**
-- [ ] **Step 4: Run debug and input suites; expect PASS.**
-- [ ] **Step 5: Commit with `feat: add Milestone 2 debug navigation`.**
+- [x] **Step 1: Add failing tests** for `N` noclip, `M` mode toggle, `[` previous section, `]` next section, edge-triggered command consumption, and overlay labels for mode/section/noclip.
+- [x] **Step 2: Run `npx vitest run tests/debug/overlay.test.ts`; expect failures.**
+- [x] **Step 3: Implement command queueing without changing Backquote or T behavior.**
+- [x] **Step 4: Run debug and input suites; expect PASS.**
+- [x] **Step 5: Commit with `feat: add Milestone 2 debug navigation`.**
 
 ---
 
@@ -241,11 +241,11 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 **Interfaces:**
 - Produces: `Game` owning `world`, `player`, `run`, active entities, prompt state, banner, and methods `step(input)`, `respawn()`, `warp(section)`, `toggleMode()`, `toggleNoclip()`.
 
-- [ ] **Step 1: Write failing integration tests** for spawning at section 1, touching checkpoints in Normal, ignoring checkpoints in Hard, Normal fall respawn, Hard hazard response, entity activation limited to camera ±1 section, mushroom launch, prompt completion from `StepEvents`, section warp, and mode toggle reset.
-- [ ] **Step 2: Run `npx vitest run tests/game/game.test.ts`; expect missing module.**
-- [ ] **Step 3: Implement `Game`** and reduce `main.ts` to DOM input, fixed-step invocation, camera/effects event handling, debug command dispatch, interpolation, and ordered world/UI drawing. While stunned, call `stepPlayer` with empty input; while noclip is enabled, move directly at 600 u/s and skip collisions.
-- [ ] **Step 4: Run the integration test, full suite, typecheck, and build; expect PASS.**
-- [ ] **Step 5: Commit with `feat: integrate playable Moss Ruins milestone`.**
+- [x] **Step 1: Write failing integration tests** for spawning at section 1, touching checkpoints in Normal, ignoring checkpoints in Hard, Normal fall respawn, Hard hazard response, entity activation limited to camera ±1 section, mushroom launch, prompt completion from `StepEvents`, section warp, and mode toggle reset.
+- [x] **Step 2: Run `npx vitest run tests/game/game.test.ts`; expect missing module.**
+- [x] **Step 3: Implement `Game`** and reduce `main.ts` to DOM input, fixed-step invocation, camera/effects event handling, debug command dispatch, interpolation, and ordered world/UI drawing. While stunned, call `stepPlayer` with empty input; while noclip is enabled, move directly at 600 u/s and skip collisions.
+- [x] **Step 4: Run the integration test, full suite, typecheck, and build; expect PASS.**
+- [x] **Step 5: Commit with `feat: integrate playable Moss Ruins milestone`.**
 
 ---
 
@@ -256,10 +256,12 @@ export interface StageDef { id: number; name: string; theme: ThemeDef; sections:
 - Modify: `HANDOFF.md`
 
 - [ ] **Step 1: Run `npm run dev` and play from section 1 through section 7 in Normal, checking each checkpoint, prompt, HUD element, and stage banner.**
-- [ ] **Step 2: Warp through every section in Hard and verify hazards knock back rather than respawn, catches are sensible, and no section is soft-locked.**
-- [ ] **Step 3: Check 960×540 and a high-DPI resized window, plus the debug overlay, noclip, warp, and slow motion.**
-- [ ] **Step 4: Run `npm test`, `npm run typecheck`, and `npm run build` from a clean process; record exact totals in `HANDOFF.md`.**
-- [ ] **Step 5: Mark completed plan checkboxes, update the handoff with Milestone 2 status and controls, then commit with `docs: record Moss Ruins milestone completion`.**
+
+  Implementation QA used debug warps to inspect all seven sections and exercised a live jump/prompt completion. The full route is intentionally left for the user's feel playtest, because movement difficulty is judged by feel rather than automation.
+- [x] **Step 2: Warp through every section in Hard and verify hazards knock back rather than respawn, catches are sensible, and no section is soft-locked.**
+- [x] **Step 3: Check 960×540 and a high-DPI resized window, plus the debug overlay, noclip, warp, and slow motion.**
+- [x] **Step 4: Run `npm test`, `npm run typecheck`, and `npm run build` from a clean process; record exact totals in `HANDOFF.md`.**
+- [x] **Step 5: Mark completed plan checkboxes, update the handoff with Milestone 2 status and controls, then commit with `docs: record Moss Ruins milestone completion`.**
 
 ---
 
