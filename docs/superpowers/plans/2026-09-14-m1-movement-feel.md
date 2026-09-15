@@ -1572,6 +1572,23 @@ describe('air dash', () => {
     stepPlayer(p, input({ moveX: 1 }), [wall]);
     expect(p.dashCharges).toBe(C.AIR_DASH_CHARGES);
   });
+
+  it('a neutral dash while against a wall in the air goes away from the wall', () => {
+    const wall = { x: 100, y: -2000, w: 40, h: 4000 };
+    const p = createPlayer(wall.x - C.PLAYER_SIZE, 0);
+    stepPlayer(p, input({ moveX: 1 }), [wall]);
+    stepPlayer(p, DASH, [wall]);
+    expect(p.vx).toBe(-C.DASH_SPEED);
+  });
+
+  it('releasing jump does not cut an upward dash started mid-jump', () => {
+    const p = onFloor();
+    stepPlayer(p, input({ jump: true, jumpPressed: true }), [FLOOR]);
+    for (let i = 0; i < 4; i++) stepPlayer(p, input({ jump: true }), [FLOOR]);
+    stepPlayer(p, input({ jump: true, dashPressed: true, moveY: -1 }), [FLOOR]);
+    stepPlayer(p, input(), [FLOOR]);
+    expect(p.vy).toBe(-C.DASH_SPEED);
+  });
 });
 
 describe('ground dash', () => {
@@ -1671,7 +1688,9 @@ function tryStartDash(p: Player, input: InputFrame, events: StepEvents): boolean
     p.dashCharges -= 1;
   }
   if (input.moveX !== 0) p.facing = input.moveX;
-  const dir = aimDirection(input.moveX, input.moveY, p.facing);
+  // A neutral dash while touching a wall in the air goes away from the wall, not into it.
+  const neutralFacing = !p.onGround && p.wallDir !== 0 ? (p.wallDir === 1 ? -1 : 1) : p.facing;
+  const dir = aimDirection(input.moveX, input.moveY, neutralFacing);
   p.vx = dir.x * C.DASH_SPEED;
   p.vy = dir.y * C.DASH_SPEED;
   p.dashTimer = C.DASH_TIME;
