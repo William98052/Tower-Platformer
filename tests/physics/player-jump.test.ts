@@ -55,6 +55,41 @@ describe('jump', () => {
     expect(e.jumped).toBe(false);
     expect(p.vy).toBeGreaterThan(0);
   });
+
+  it('a jump blocked by a flush ceiling fires once and does not repeat while held', () => {
+    const ceiling = { x: -1000, y: FLOOR_Y - 40, w: 3000, h: 40 }; // bottom edge touches the head
+    const solids = [FLOOR, ceiling];
+    const p = onFloor(0, solids);
+    expect(stepPlayer(p, input({ jump: true, jumpPressed: true }), solids).jumped).toBe(true);
+    for (let i = 0; i < 20; i++) {
+      expect(stepPlayer(p, input({ jump: true }), solids).jumped).toBe(false);
+      expect(p.jumping).toBe(false);
+      expect(p.onGround).toBe(true);
+      expect(p.y).toBe(FLOOR_Y);
+    }
+  });
+
+  it('cannot jump again in the air shortly after jumping', () => {
+    for (let wait = 1; wait <= 10; wait++) {
+      const p = onFloor();
+      stepPlayer(p, input({ jump: true, jumpPressed: true }), [FLOOR]);
+      for (let i = 0; i < wait; i++) stepPlayer(p, input({ jump: true }), [FLOOR]);
+      const e = stepPlayer(p, input({ jump: true, jumpPressed: true }), [FLOOR]);
+      expect(e.jumped).toBe(false);
+      expect(p.onGround).toBe(false);
+    }
+  });
+
+  it('a head bonk ends the jump so a later release cuts nothing', () => {
+    const ceiling = { x: -1000, y: FLOOR_Y - 50, w: 3000, h: 40 }; // 10 units above the head
+    const solids = [FLOOR, ceiling];
+    const p = onFloor(0, solids);
+    stepPlayer(p, input({ jump: true, jumpPressed: true }), solids);
+    stepPlayer(p, input({ jump: true }), solids);
+    expect(p.vy).toBe(0);
+    stepPlayer(p, input({ jump: true }), solids);
+    expect(p.jumping).toBe(false);
+  });
 });
 
 describe('coyote time', () => {
