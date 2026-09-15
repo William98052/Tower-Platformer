@@ -83,6 +83,8 @@ function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: 
 
   const wasOnGround = p.onGround;
   p.onGround = isTouching(p, 0, 1, solids);
+  // A fall can end exactly flush (no overlap, so no hit); don't carry fall speed while grounded.
+  if (p.onGround && p.vy > 0) p.vy = 0;
   p.wallDir = p.onGround ? 0 : isTouching(p, -1, 0, solids) ? -1 : isTouching(p, 1, 0, solids) ? 1 : 0;
   if (p.onGround && !wasOnGround) events.landed = Math.max(impact, 0);
 }

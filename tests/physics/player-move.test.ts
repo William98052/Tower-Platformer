@@ -46,6 +46,25 @@ describe('stepPlayer: gravity and ground', () => {
     expect(landings).toHaveLength(1);
     expect(landings[0]).toBeGreaterThan(1000);
   });
+
+  it('keeps vertical speed at exactly 0 while standing still', () => {
+    const p = onFloor();
+    for (let i = 0; i < 300; i++) {
+      const e = stepPlayer(p, input(), [FLOOR]);
+      expect(e.landed).toBe(0);
+      expect(p.vy).toBe(0);
+      expect(p.y).toBe(FLOOR_Y);
+    }
+  });
+
+  it('zeroes vertical speed on the step it lands exactly flush with the floor', () => {
+    const p = createPlayer(0, FLOOR_Y - 10); // one max-speed step (10 units) above the floor
+    p.vy = C.MAX_FALL;
+    const e = stepPlayer(p, input(), [FLOOR]);
+    expect(e.landed).toBe(C.MAX_FALL);
+    expect(p.onGround).toBe(true);
+    expect(p.vy).toBe(0);
+  });
 });
 
 describe('stepPlayer: running', () => {
@@ -75,6 +94,12 @@ describe('stepPlayer: running', () => {
     expect(p.x).toBe(100 - C.PLAYER_SIZE);
     expect(p.vx).toBe(0);
   });
+
+  it('steers in the air with AIR_ACCEL', () => {
+    const p = createPlayer(0, 0);
+    stepPlayer(p, input({ moveX: 1 }), []);
+    expect(p.vx).toBeCloseTo(C.AIR_ACCEL * C.STEP, 9);
+  });
 });
 
 describe('stepPlayer: wall contact', () => {
@@ -91,5 +116,12 @@ describe('stepPlayer: wall contact', () => {
     stepPlayer(p, input(), [FLOOR, wall]);
     expect(p.onGround).toBe(true);
     expect(p.wallDir).toBe(0);
+  });
+
+  it('reports a wall on the left while airborne', () => {
+    const leftWall = { x: -40, y: -2000, w: 40, h: 4000 };
+    const p = createPlayer(0, 0);
+    stepPlayer(p, input(), [leftWall]);
+    expect(p.wallDir).toBe(-1);
   });
 });
