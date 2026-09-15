@@ -1,6 +1,7 @@
 import type { AABB } from '../physics/aabb';
 
 export type SurfaceType = 'normal' | 'oneWay' | 'vine' | 'bouncy' | 'slopeUp' | 'slopeDown';
+export type SolidRole = 'main' | 'recovery' | 'boundary';
 
 export interface Point {
   x: number;
@@ -9,6 +10,7 @@ export interface Point {
 
 export interface SolidDef extends AABB {
   surface: SurfaceType;
+  role?: SolidRole;
 }
 
 export type PromptId = 'jump' | 'wallJump' | 'dash';

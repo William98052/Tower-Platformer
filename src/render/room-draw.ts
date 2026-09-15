@@ -1,6 +1,6 @@
 import { VIEW_H, VIEW_W } from '../core/constants';
 import type { CollisionSolid } from '../physics/collision';
-import type { SurfaceType } from '../stages/types';
+import type { SolidRole, SurfaceType } from '../stages/types';
 
 const COLORS = {
   skyTop: '#0e1815',
@@ -31,6 +31,12 @@ export function surfaceColors(surface: SurfaceType = 'normal'): { body: string; 
   return SURFACE_COLORS[surface];
 }
 
+export function solidStyle(role: SolidRole = 'main'): { alpha: number } {
+  if (role === 'recovery') return { alpha: 0.56 };
+  if (role === 'boundary') return { alpha: 0.82 };
+  return { alpha: 1 };
+}
+
 /** Moss tuft height 2..5 for a tile index; Fibonacci hashing on the high bits so neighbours vary. */
 export function mossHeight(i: number): number {
   return 2 + (Math.imul(i, 0x9e3779b1) >>> 30);
@@ -52,36 +58,99 @@ export function drawBackground(ctx: CanvasRenderingContext2D, camX: number, camY
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-  tile(camX * 0.25, camY * 0.25, 240, 360, (x, y) => drawRuin(ctx, x, y));
-  tile(camX * 0.5, camY * 0.5, 320, 420, (x, y) => drawVines(ctx, x, y, t));
+  drawLightShafts(ctx, t);
+  tile(camX * 0.22, camY * 0.22, 360, 420, (x, y) => drawRuin(ctx, x, y));
+  tile(camX * 0.48, camY * 0.48, 420, 500, (x, y) => drawVines(ctx, x, y, t));
+  drawMist(ctx, camY, t);
   drawSpores(ctx, camY, t);
+}
+
+function drawLightShafts(ctx: CanvasRenderingContext2D, t: number): void {
+  ctx.save();
+  ctx.globalAlpha = 0.045 + Math.sin(t * 0.18) * 0.008;
+  ctx.fillStyle = '#d9edb3';
+  ctx.beginPath();
+  ctx.moveTo(100, 0);
+  ctx.lineTo(250, 0);
+  ctx.lineTo(390, VIEW_H);
+  ctx.lineTo(275, VIEW_H);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(720, 0);
+  ctx.lineTo(805, 0);
+  ctx.lineTo(690, VIEW_H);
+  ctx.lineTo(610, VIEW_H);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawRuin(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.fillStyle = COLORS.far;
-  ctx.fillRect(x + 20, y, 34, 360); // column
-  ctx.fillRect(x + 12, y + 40, 50, 10); // capital
-  ctx.fillRect(x + 54, y + 60, 186, 16); // lintel
-  ctx.fillStyle = COLORS.farWindow;
+  ctx.fillRect(x + 18, y + 38, 42, 382);
+  ctx.fillRect(x + 8, y + 72, 62, 12);
+  ctx.fillRect(x + 60, y + 92, 250, 20);
+  ctx.fillRect(x + 282, y + 38, 38, 382);
+  ctx.fillRect(x + 272, y + 72, 58, 12);
+
+  // A large recessed arch makes the background read as a ruined hall, not random rectangles.
+  ctx.fillStyle = '#111d19';
   ctx.beginPath();
-  ctx.roundRect(x + 130, y + 170, 22, 40, [11, 11, 0, 0]);
+  ctx.roundRect(x + 112, y + 148, 138, 272, [69, 69, 0, 0]);
   ctx.fill();
+  ctx.fillStyle = COLORS.far;
+  ctx.fillRect(x + 135, y + 205, 18, 215);
+  ctx.fillRect(x + 210, y + 205, 18, 215);
+  ctx.fillRect(x + 135, y + 250, 93, 14);
+
+  ctx.fillStyle = COLORS.farWindow;
+  for (const wx of [145, 188]) {
+    ctx.beginPath();
+    ctx.roundRect(x + wx, y + 168, 24, 50, [12, 12, 0, 0]);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = 'rgba(126, 165, 90, 0.14)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 88, y + 112);
+  ctx.lineTo(x + 102, y + 143);
+  ctx.lineTo(x + 90, y + 178);
+  ctx.moveTo(x + 278, y + 112);
+  ctx.lineTo(x + 264, y + 150);
+  ctx.stroke();
 }
 
 function drawVines(ctx: CanvasRenderingContext2D, x: number, y: number, t: number): void {
   ctx.fillStyle = COLORS.mid;
-  ctx.fillRect(x + 140, y + 220, 44, 200); // broken pillar
+  ctx.fillRect(x + 182, y + 240, 54, 260);
+  ctx.fillRect(x + 170, y + 270, 78, 12);
   ctx.save();
   ctx.strokeStyle = COLORS.vine;
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
-  for (let k = 0; k < 3; k++) {
-    const baseX = x + 60 + k * 90;
+  for (let k = 0; k < 4; k++) {
+    const baseX = x + 42 + k * 102;
     const sway = Math.sin(t * 0.8 + x * 0.01 + k);
     ctx.beginPath();
     ctx.moveTo(baseX, y);
-    ctx.quadraticCurveTo(baseX + sway * 10, y + 60, baseX + sway * 4, y + 120 + k * 30);
+    ctx.quadraticCurveTo(baseX + sway * 12, y + 80, baseX + sway * 5, y + 150 + k * 24);
     ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMist(ctx: CanvasRenderingContext2D, camY: number, t: number): void {
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const y = mod(i * 210 - camY * 0.1 + Math.sin(t * 0.25 + i) * 18, VIEW_H + 160) - 80;
+    const fog = ctx.createLinearGradient(0, y, 0, y + 90);
+    fog.addColorStop(0, 'rgba(128, 158, 116, 0)');
+    fog.addColorStop(0.5, 'rgba(128, 158, 116, 0.045)');
+    fog.addColorStop(1, 'rgba(128, 158, 116, 0)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, y, VIEW_W, 90);
   }
   ctx.restore();
 }
@@ -107,6 +176,9 @@ export function drawSolids(
     const sx = s.x - camX;
     const sy = s.y - camY;
     if (sx > VIEW_W || sx + s.w < 0 || sy > VIEW_H || sy + s.h < 0) continue;
+
+    ctx.save();
+    ctx.globalAlpha *= solidStyle(s.role).alpha;
 
     const surface = s.surface ?? 'normal';
     const palette = surfaceColors(surface);
@@ -165,6 +237,17 @@ export function drawSolids(
         ctx.fillRect(sx + k, sy - h + 1, 6, h);
       }
     }
+    if (s.role === 'main' && isPlatform && surface !== 'oneWay') {
+      ctx.strokeStyle = 'rgba(77, 119, 66, 0.72)';
+      ctx.lineWidth = 2;
+      for (let k = 28; k < s.w - 20; k += 72) {
+        const length = 10 + mossHeight(Math.floor(s.x + k)) * 3;
+        ctx.beginPath();
+        ctx.moveTo(sx + k, sy + s.h);
+        ctx.quadraticCurveTo(sx + k + 4, sy + s.h + length / 2, sx + k - 2, sy + s.h + length);
+        ctx.stroke();
+      }
+    }
     if (surface === 'vine') {
       ctx.strokeStyle = '#6fa453';
       ctx.lineWidth = 3;
@@ -175,5 +258,6 @@ export function drawSolids(
         ctx.stroke();
       }
     }
+    ctx.restore();
   }
 }

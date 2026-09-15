@@ -1,15 +1,23 @@
-import type { EntityDef, SectionDef, SolidDef, StageDef } from './types';
+import type { EntityDef, SectionDef, SolidDef, SolidRole, StageDef } from './types';
 
 const HEIGHT = 700;
 const T = 16;
 
 const shell = (): SolidDef[] => [
-  { x: 0, y: 0, w: 24, h: HEIGHT, surface: 'normal' },
-  { x: 936, y: 0, w: 24, h: HEIGHT, surface: 'normal' },
+  { x: 0, y: 0, w: 24, h: HEIGHT, surface: 'normal', role: 'boundary' },
+  { x: 936, y: 0, w: 24, h: HEIGHT, surface: 'normal', role: 'boundary' },
 ];
 
-const platform = (x: number, y: number, w: number, surface: SolidDef['surface'] = 'normal'): SolidDef =>
-  ({ x, y, w, h: T, surface });
+const platform = (
+  x: number,
+  y: number,
+  w: number,
+  surface: SolidDef['surface'] = 'normal',
+  role: SolidRole = 'main',
+): SolidDef => ({ x, y, w, h: T, surface, role });
+
+const vine = (x: number, y: number, h: number): SolidDef =>
+  ({ x, y, w: 24, h, surface: 'vine', role: 'main' });
 
 const section = (
   id: number,
@@ -35,95 +43,94 @@ export const STAGE_01_MOSS: StageDef = {
     accent: '#83ad62',
   },
   sections: [
-    // 1. Broken stair ascent: jump basics and a safe mushroom demonstration.
+    // 1. A single broken staircase introduces jumping, then the mushroom points to the exit.
     section(0, 60, [
-      platform(24, 660, 912),
-      platform(90, 540, 220),
-      platform(390, 420, 190),
-      platform(650, 300, 190),
-      platform(390, 180, 190),
-      platform(110, 60, 220),
+      platform(24, 660, 300),
+      platform(120, 535, 220),
+      platform(300, 410, 220),
+      platform(500, 285, 210),
+      platform(630, 160, 210),
+      platform(500, 70, 210),
+      platform(260, 20, 260),
     ], [
-      { type: 'prompt', x: 45, y: 500, w: 220, h: 150, prompt: 'jump' },
-      { type: 'mushroom', x: 690, y: 276, w: 90, h: 24, launch: 920 },
+      { type: 'prompt', x: 45, y: 500, w: 260, h: 150, prompt: 'jump' },
+      { type: 'mushroom', x: 565, y: 261, w: 90, h: 24, launch: 920 },
     ]),
 
-    // 2. A generous two-sided vine shaft teaches alternating wall jumps.
-    section(1, 70, [
-      platform(24, 660, 270),
-      platform(170, 520, 190),
-      platform(560, 380, 180),
-      platform(690, 240, 220),
-      platform(400, 100, 220),
-      { x: 390, y: 210, w: 24, h: 340, surface: 'vine' },
-      { x: 524, y: 150, w: 24, h: 400, surface: 'vine' },
+    // 2. The route visibly enters one framed wall-jump shaft and exits to the right.
+    section(1, 280, [
+      platform(240, 660, 300),
+      platform(330, 540, 170),
+      platform(540, 400, 180),
+      platform(600, 270, 190),
+      platform(690, 140, 190),
+      platform(600, 20, 250),
+      vine(430, 245, 315),
+      vine(560, 205, 355),
     ], [
-      { type: 'prompt', x: 330, y: 300, w: 280, h: 300, prompt: 'wallJump' },
+      { type: 'prompt', x: 390, y: 250, w: 230, h: 330, prompt: 'wallJump' },
     ]),
 
-    // 3. One-way canopy platforms form a readable switchback.
-    section(2, 760, [
-      platform(700, 660, 236),
-      platform(520, 530, 250, 'oneWay'),
-      platform(180, 400, 240, 'oneWay'),
-      platform(500, 270, 250, 'oneWay'),
-      platform(150, 140, 240, 'oneWay'),
-      platform(430, 20, 230),
+    // 3. Overlapping one-way canopies make a single readable left-right switchback.
+    section(2, 620, [
+      platform(580, 660, 356),
+      platform(500, 535, 260, 'oneWay'),
+      platform(300, 410, 260, 'oneWay'),
+      platform(120, 285, 250, 'oneWay'),
+      platform(350, 160, 260, 'oneWay'),
+      platform(650, 35, 240),
     ], []),
 
-    // 4. Broad slopes and mushrooms create a flowing zigzag.
-    section(3, 80, [
-      platform(24, 660, 250),
-      { x: 240, y: 500, w: 180, h: 120, surface: 'slopeUp' },
-      platform(420, 500, 160),
-      { x: 580, y: 360, w: 180, h: 120, surface: 'slopeDown' },
-      platform(500, 340, 160),
-      platform(250, 220, 180),
-      { x: 90, y: 60, w: 160, h: 120, surface: 'slopeUp' },
-      platform(250, 60, 180),
+    // 4. Stepped stone terraces replace the old triangular ramps; mushrooms bridge the tall beats.
+    section(3, 650, [
+      platform(620, 660, 316),
+      platform(560, 535, 220),
+      platform(390, 410, 220),
+      platform(240, 285, 200),
+      platform(380, 160, 220),
+      platform(560, 35, 260),
     ], [
-      { type: 'mushroom', x: 470, y: 476, w: 90, h: 24, launch: 980 },
-      { type: 'mushroom', x: 285, y: 196, w: 90, h: 24, launch: 1000 },
+      { type: 'mushroom', x: 620, y: 511, w: 90, h: 24, launch: 940 },
+      { type: 'mushroom', x: 290, y: 261, w: 90, h: 24, launch: 980 },
     ]),
 
-    // 5. First required dash; low catch ledges make misses recoverable.
-    section(4, 70, [
-      platform(24, 660, 260),
-      platform(80, 540, 230),
-      platform(550, 420, 260),
-      platform(350, 500, 120, 'oneWay'),
-      platform(690, 300, 210),
-      platform(380, 180, 190),
-      platform(100, 60, 210),
+    // 5. Alternating towers create obvious dash targets; one dim ledge catches a missed first dash.
+    section(4, 580, [
+      platform(540, 660, 300),
+      platform(620, 535, 240),
+      platform(180, 410, 220),
+      platform(520, 285, 220),
+      platform(200, 160, 220),
+      platform(120, 35, 240),
+      platform(410, 480, 100, 'oneWay', 'recovery'),
     ], [
-      { type: 'prompt', x: 180, y: 390, w: 450, h: 220, prompt: 'dash' },
+      { type: 'prompt', x: 310, y: 370, w: 470, h: 230, prompt: 'dash' },
     ]),
 
-    // 6. Combined vine, canopy and diagonal-dash route.
-    section(5, 760, [
-      platform(690, 660, 246),
-      platform(610, 540, 210, 'oneWay'),
-      { x: 470, y: 320, w: 24, h: 300, surface: 'vine' },
-      { x: 600, y: 280, w: 24, h: 280, surface: 'vine' },
-      platform(300, 400, 170, 'oneWay'),
-      platform(90, 270, 180),
-      platform(400, 140, 170, 'oneWay'),
-      platform(690, 20, 190),
+    // 6. One S-shaped route feeds directly into a compact vine shaft and back out.
+    section(5, 120, [
+      platform(80, 660, 300),
+      platform(240, 535, 220, 'oneWay'),
+      platform(390, 410, 170),
+      platform(560, 285, 200),
+      platform(660, 160, 200, 'oneWay'),
+      platform(520, 35, 260),
+      vine(430, 235, 335),
+      vine(560, 210, 360),
     ], []),
 
-    // 7. Finale: mushroom launch, wall jump, ramp and final dash.
-    section(6, 70, [
-      platform(24, 660, 260),
-      platform(260, 540, 150),
-      { x: 430, y: 300, w: 24, h: 300, surface: 'vine' },
-      { x: 560, y: 260, w: 24, h: 300, surface: 'vine' },
-      platform(584, 400, 170, 'oneWay'),
-      { x: 650, y: 230, w: 170, h: 120, surface: 'slopeUp' },
-      platform(520, 220, 130),
-      platform(150, 90, 190),
-      platform(500, 20, 260),
+    // 7. A centered finale chains mushroom, shaft and dash without side branches.
+    section(6, 550, [
+      platform(500, 660, 300),
+      platform(420, 535, 220),
+      platform(300, 410, 180),
+      platform(430, 285, 180),
+      platform(650, 160, 200),
+      platform(500, 35, 280),
+      vine(300, 220, 250),
+      vine(430, 195, 275),
     ], [
-      { type: 'mushroom', x: 300, y: 516, w: 90, h: 24, launch: 1080 },
+      { type: 'mushroom', x: 480, y: 511, w: 90, h: 24, launch: 1020 },
     ]),
   ],
 };

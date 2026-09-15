@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mossHeight, surfaceColors } from '../../src/render/room-draw';
+import { mossHeight, solidStyle, surfaceColors } from '../../src/render/room-draw';
 
 describe('mossHeight', () => {
   it('stays an integer within 2..5 for any tile index, including negative', () => {
@@ -22,5 +22,11 @@ describe('surfaceColors', () => {
     const surfaces = ['normal', 'oneWay', 'vine', 'bouncy', 'slopeUp', 'slopeDown'] as const;
     const treatments = surfaces.map((surface) => surfaceColors(surface));
     expect(new Set(treatments.map((item) => `${item.body}/${item.edge}`)).size).toBe(surfaces.length);
+  });
+
+  it('visually prioritizes the main route over recovery ledges', () => {
+    expect(solidStyle('main').alpha).toBe(1);
+    expect(solidStyle('recovery').alpha).toBeLessThan(0.7);
+    expect(solidStyle('boundary').alpha).toBeLessThan(1);
   });
 });

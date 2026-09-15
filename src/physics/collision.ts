@@ -1,7 +1,7 @@
 import { type AABB, overlaps } from './aabb';
-import type { SolidDef, SurfaceType } from '../stages/types';
+import type { SolidDef, SolidRole, SurfaceType } from '../stages/types';
 
-export type CollisionSolid = AABB & { surface?: SurfaceType };
+export type CollisionSolid = AABB & { surface?: SurfaceType; role?: SolidRole };
 
 export interface MoveResult {
   x: number;
