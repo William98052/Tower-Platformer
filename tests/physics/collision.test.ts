@@ -85,3 +85,32 @@ describe('isTouching', () => {
     expect(isTouching(stopped, -1, 0, [wall])).toBe(false);
   });
 });
+
+describe('moveAndCollide corner correction', () => {
+  const player = { x: 0, y: 20, w: 10, h: 10 };
+
+  it('nudges around a ceiling corner that overlaps by 4 units', () => {
+    const ledge = { x: -100, y: 0, w: 104, h: 10 }; // right edge at x=4
+    expect(moveAndCollide(player, 0, -15, [ledge], 6)).toEqual({ x: 4, y: 5, hitX: false, hitY: false });
+  });
+
+  it('nudges left around a corner on the right', () => {
+    const ledge = { x: 7, y: 0, w: 100, h: 10 }; // left edge at x=7, overlap 3
+    expect(moveAndCollide(player, 0, -15, [ledge], 6)).toEqual({ x: -3, y: 5, hitX: false, hitY: false });
+  });
+
+  it('does not nudge when the overlap is larger than the correction', () => {
+    const ledge = { x: -100, y: 0, w: 108, h: 10 }; // overlap 8
+    expect(moveAndCollide(player, 0, -15, [ledge], 6)).toEqual({ x: 0, y: 10, hitX: false, hitY: true });
+  });
+
+  it('does not nudge when disabled', () => {
+    const ledge = { x: -100, y: 0, w: 104, h: 10 };
+    expect(moveAndCollide(player, 0, -15, [ledge]).hitY).toBe(true);
+  });
+
+  it('never nudges when moving down', () => {
+    const floor = { x: -100, y: 35, w: 104, h: 10 };
+    expect(moveAndCollide(player, 0, 10, [floor], 6)).toEqual({ x: 0, y: 25, hitX: false, hitY: true });
+  });
+});
