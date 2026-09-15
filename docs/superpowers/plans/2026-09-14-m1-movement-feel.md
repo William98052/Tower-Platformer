@@ -2819,6 +2819,87 @@ git commit -m "feat: wire up playable movement test room"
 
 ---
 
+## Implementation notes: agreed deviations from the code above
+
+Code reviews during execution changed the implementation in these ways. The code in `src/` and `tests/` is authoritative; the task code blocks above show the original plan.
+
+**Controls**
+- Jump is Space or C. W and Up only aim, so an up-dash never triggers a jump.
+- `InputTracker.keyDown(code, repeat)`: key-repeat events keep a key held but never count as a new press.
+- `main.ts` releases all keys on a Meta keyup (the macOS stuck-key quirk).
+- `main.ts` ignores modifier combos and treats debug keys and R as once per physical press. Tab is prevented so focus stays in the game.
+
+**Collision**
+- The ceiling corner nudge never pushes against horizontal movement.
+- `moveAndCollide` documents its preconditions: the box starts clear, moves less than its size per call, and solids use integer coordinates.
+
+**Loop**
+- `FixedStep.advance` treats non-finite frame times as 0.
+
+**Jump**
+- The jump step sets vy after gravity, so the measured apex is about 159.5 and the test allows up to 162.
+- A flush landing zeroes vy.
+
+**Walls**
+- The same wall side can't be wall-jumped twice until landing (`lastWallJumpDir`).
+- The wall-jump lock reduces air control only; ground control is unaffected.
+
+**Dash**
+- Every dash spends the charge. The ground keeps its 0.4 s cooldown and returns the charge after the dash ends.
+- A wall slide refills at most once per wall side per airtime (`lastWallRefillDir`).
+- A ground jump that cancels a dash keeps 60% of vx.
+- A dash lasts exactly 18 steps.
+- A ground dash ignores a downward aim.
+- A neutral air dash against a wall goes away from it.
+
+**Camera**
+- The velocity look-ahead is replaced by an eased `fallLead`. It is zero at jump speeds (no bob) and reaches full strength at `MAX_FALL`, where it cancels the follow lag and frames 80 extra units below the player.
+
+**Effects**
+- Bursts with no count or no life are ignored.
+- Negative dt is ignored.
+
+**Renderers**
+- `drawSolids` and `drawPlayer` take `blurScale` (`scale * dpr` from `main.ts`), because canvas blur ignores transforms.
+- Stroke state is restored after drawing.
+- Moss heights come from a tested `mossHeight` hash.
+- The player's base band has rounded corners.
+
+**Test room**
+- It is enclosed by a ceiling.
+- The dash-gap target sits at y 740.
+- Tests cover enclosure, a no-dash sweep over every run-up (including coyote jumps), jump plus air dash, and a shaft climb.
+
+**Debug overlay**
+- A SLOW-MO badge shows even when the overlay is hidden.
+- A wall and refill state readout line was added.
+
+**main.ts**
+- Dash afterimages use a global step counter and the position before each step.
+- The debug hitbox uses the interpolated position.
+- Wall-jump dust faces away from the wall.
+
+**Deferred to Milestone 2 or play-testing**
+- Movement and wall feel:
+  - ledge-corner correction
+  - wall-slide easing
+  - a wall-contact grace window
+  - dash buffering
+  - the upward-dash ceiling hang
+  - ground momentum after a dash
+- Rendering:
+  - camera and device-pixel snapping
+  - a devicePixelRatio change listener
+  - a per-solid render `kind` (the floor, ceiling and walls vs platform heuristic)
+  - the palette table
+  - offscreen caching
+- Code structure:
+  - a reusable `describeRoomInvariants(room)` test helper
+  - extracting the step loop and feedback mapping from `main.ts` into a session module
+- Input and timing:
+  - gamepad selection by standard mapping
+  - the 0.25 s frame clamp, which may drop to about 0.1 s
+
 ## Out of scope for this plan (later milestones)
 
 Each gets its own plan, per spec §11:
