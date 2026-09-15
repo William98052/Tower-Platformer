@@ -58,17 +58,15 @@ export const STAGE_01_MOSS: StageDef = {
     ]),
 
     // 2. The route visibly enters one framed wall-jump shaft and exits to the right.
-    section(1, 280, [
-      platform(240, 660, 300),
-      platform(330, 540, 170),
-      platform(540, 400, 180),
-      platform(600, 270, 190),
-      platform(690, 140, 190),
+    section(1, 475, [
+      platform(240, 660, 344),
+      platform(584, 280, 250),
+      platform(680, 150, 200),
       platform(600, 20, 250),
-      vine(430, 245, 315),
-      vine(560, 205, 355),
+      vine(430, 280, 380),
+      vine(560, 280, 380),
     ], [
-      { type: 'prompt', x: 390, y: 250, w: 230, h: 330, prompt: 'wallJump' },
+      { type: 'prompt', x: 420, y: 270, w: 180, h: 400, prompt: 'wallJump' },
     ]),
 
     // 3. Overlapping one-way canopies make a single readable left-right switchback.
@@ -108,29 +106,25 @@ export const STAGE_01_MOSS: StageDef = {
     ]),
 
     // 6. One S-shaped route feeds directly into a compact vine shaft and back out.
-    section(5, 120, [
-      platform(80, 660, 300),
-      platform(240, 535, 220, 'oneWay'),
-      platform(390, 410, 170),
-      platform(560, 285, 200),
+    section(5, 345, [
+      platform(80, 660, 374),
+      platform(454, 280, 260),
       platform(660, 160, 200, 'oneWay'),
       platform(520, 35, 260),
-      vine(430, 235, 335),
-      vine(560, 210, 360),
+      vine(300, 280, 380),
+      vine(430, 280, 380),
     ], []),
 
     // 7. A centered finale chains mushroom, shaft and dash without side branches.
-    section(6, 550, [
-      platform(500, 660, 300),
-      platform(420, 535, 220),
-      platform(300, 410, 180),
-      platform(430, 285, 180),
+    section(6, 345, [
+      platform(300, 660, 284),
+      platform(454, 280, 230),
       platform(650, 160, 200),
       platform(500, 35, 280),
-      vine(300, 220, 250),
-      vine(430, 195, 275),
+      vine(300, 280, 380),
+      vine(430, 280, 380),
     ], [
-      { type: 'mushroom', x: 480, y: 511, w: 90, h: 24, launch: 1020 },
+      { type: 'mushroom', x: 340, y: 636, w: 70, h: 24, launch: 1020 },
     ]),
   ],
 };

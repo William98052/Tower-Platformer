@@ -36,7 +36,15 @@ describe('STAGE_01_MOSS', () => {
     for (const section of STAGE_01_MOSS.sections) {
       const platforms = section.solids.filter((solid) => solid.h <= 24 && !solid.surface.startsWith('slope'));
       const levels = [...new Set(platforms.map((solid) => solid.y))].sort((a, b) => b - a);
-      for (let i = 1; i < levels.length; i++) expect(levels[i - 1] - levels[i], `section ${section.id}`).toBeLessThanOrEqual(180);
+      for (let i = 1; i < levels.length; i++) {
+        const lowerY = levels[i - 1];
+        const upperY = levels[i];
+        const verticalGap = lowerY - upperY;
+        if (verticalGap > 180) {
+          const bridgingVines = section.solids.filter((solid) => solid.surface === 'vine' && solid.y <= upperY && solid.y + solid.h >= lowerY);
+          expect(bridgingVines.length, `section ${section.id}`).toBeGreaterThanOrEqual(2);
+        }
+      }
       for (const solid of section.solids.filter((item) => item.surface === 'vine')) {
         expect(solid.w).toBeGreaterThanOrEqual(20);
       }
@@ -62,12 +70,19 @@ describe('STAGE_01_MOSS', () => {
       expect(platforms.every((solid) => solid.role === 'main' || solid.role === 'recovery'), `section ${section.id}`).toBe(true);
 
       const route = platforms.filter((solid) => solid.role === 'main').sort((a, b) => b.y - a.y);
-      expect(route.length, `section ${section.id}`).toBeGreaterThanOrEqual(5);
+      const vines = section.solids.filter((solid) => solid.surface === 'vine');
+      expect(route.length, `section ${section.id}`).toBeGreaterThanOrEqual(vines.length > 0 ? 3 : 5);
       for (let i = 1; i < route.length; i++) {
         const lower = route[i - 1];
         const upper = route[i];
         const horizontalGap = Math.max(0, upper.x - (lower.x + lower.w), lower.x - (upper.x + upper.w));
-        expect(lower.y - upper.y, `section ${section.id} vertical link ${i}`).toBeLessThanOrEqual(145);
+        const verticalGap = lower.y - upper.y;
+        if (verticalGap > 145) {
+          const bridgingVines = vines.filter((vine) => vine.y <= upper.y && vine.y + vine.h >= lower.y);
+          expect(bridgingVines.length, `section ${section.id} shaft link ${i}`).toBeGreaterThanOrEqual(2);
+        } else {
+          expect(verticalGap, `section ${section.id} vertical link ${i}`).toBeLessThanOrEqual(145);
+        }
         expect(horizontalGap, `section ${section.id} horizontal link ${i}`).toBeLessThanOrEqual(280);
       }
 
@@ -83,5 +98,33 @@ describe('STAGE_01_MOSS', () => {
       const entrance = nextRoute.reduce((lowest, solid) => solid.y > lowest.y ? solid : lowest);
       expect(Math.min(exit.x + exit.w, entrance.x + entrance.w) - Math.max(exit.x, entrance.x), `handoff ${i + 1}`).toBeGreaterThan(40);
     }
+  });
+
+  it('joins vine walls and platforms edge-to-edge without shoving rectangles through each other', () => {
+    for (const section of STAGE_01_MOSS.sections) {
+      const vines = section.solids.filter((solid) => solid.surface === 'vine');
+      const platforms = section.solids.filter((solid) => solid.h <= 24);
+      for (const vine of vines) {
+        for (const platform of platforms) {
+          expect(overlaps(vine, platform), `section ${section.id}: vine ${vine.x},${vine.y} overlaps platform ${platform.x},${platform.y}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('starts the first wall jump directly from its checkpoint floor', () => {
+    const section = STAGE_01_MOSS.sections[1];
+    const [left, right] = section.solids.filter((solid) => solid.surface === 'vine').sort((a, b) => a.x - b.x);
+    const platforms = section.solids.filter((solid) => solid.h <= 24);
+    const floor = platforms.find((solid) => section.checkpoint.y + 28 <= solid.y && section.checkpoint.x >= solid.x && section.checkpoint.x + 28 <= solid.x + solid.w);
+
+    expect(floor).toBeDefined();
+    expect(section.checkpoint.x).toBeGreaterThanOrEqual(left.x + left.w);
+    expect(section.checkpoint.x + 28).toBeLessThanOrEqual(right.x);
+    expect(left.y + left.h).toBe(floor?.y);
+    expect(right.y + right.h).toBe(floor?.y);
+
+    const redundantApproachLedges = platforms.filter((solid) => solid !== floor && solid.y > Math.max(left.y, right.y) && solid.y < (floor?.y ?? 0));
+    expect(redundantApproachLedges).toEqual([]);
   });
 });
