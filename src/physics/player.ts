@@ -15,6 +15,8 @@ export interface Player extends AABB {
   /** True while rising from a jump that can still be cut short. */
   jumping: boolean;
   wallJumpLock: number;
+  /** Side of the last wall jump; that side can't be wall-jumped again until landing. */
+  lastWallJumpDir: -1 | 0 | 1;
   dashCharges: number;
   dashTimer: number;
   dashCooldown: number;
@@ -44,6 +46,7 @@ export function createPlayer(x: number, y: number): Player {
     jumpBuffer: 0,
     jumping: false,
     wallJumpLock: 0,
+    lastWallJumpDir: 0,
     dashCharges: C.AIR_DASH_CHARGES,
     dashTimer: 0,
     dashCooldown: 0,
@@ -69,7 +72,7 @@ function applyHorizontal(p: Player, input: InputFrame, dt: number): void {
   if (input.moveX !== 0) p.facing = input.moveX;
   const target = input.moveX * C.RUN_SPEED;
   const accel = p.onGround ? (input.moveX !== 0 ? C.GROUND_ACCEL : C.GROUND_DECEL) : C.AIR_ACCEL;
-  const control = p.wallJumpLock > 0 ? C.WALL_JUMP_CONTROL : 1;
+  const control = p.wallJumpLock > 0 && !p.onGround ? C.WALL_JUMP_CONTROL : 1;
   p.vx = approach(p.vx, target, accel * control * dt);
 }
 
@@ -91,11 +94,12 @@ function tryJump(p: Player, events: StepEvents): void {
     p.vy = -C.JUMP_VELOCITY;
     p.onGround = false;
     events.jumped = true;
-  } else if (p.wallDir !== 0) {
+  } else if (p.wallDir !== 0 && p.wallDir !== p.lastWallJumpDir) {
     p.vx = -p.wallDir * C.WALL_JUMP_X;
     p.vy = -C.WALL_JUMP_Y;
     p.facing = p.wallDir === 1 ? -1 : 1;
     p.wallJumpLock = C.WALL_JUMP_LOCK;
+    p.lastWallJumpDir = p.wallDir;
     events.wallJumped = true;
   } else {
     return;
@@ -128,6 +132,7 @@ function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: 
   p.onGround = isTouching(p, 0, 1, solids);
   // A fall can end exactly flush (no overlap, so no hit); don't carry fall speed while grounded.
   if (p.onGround && p.vy > 0) p.vy = 0;
+  if (p.onGround) p.lastWallJumpDir = 0;
   p.wallDir = p.onGround ? 0 : isTouching(p, -1, 0, solids) ? -1 : isTouching(p, 1, 0, solids) ? 1 : 0;
   if (p.onGround && !wasOnGround) events.landed = Math.max(impact, 0);
 }
