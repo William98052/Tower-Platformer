@@ -92,6 +92,7 @@ All numbers are **starting values to tune by feel**. Units: world units and seco
   - on the ground once the dash has ended;
   - from a **dash-refill crystal**;
   - while wall sliding with the charge spent. This happens at most once per wall side per airtime, so a single wall can't be dash-climbed.
+- **Stamina (deferred):** a stamina bar that jumps and dashes drain was built and tried, but it made wall hops too hard. It was removed and may come back later. The work is kept on the local `stamina-shelved` branch.
 - **Ground dash:** has a 0.4 s cooldown. It ignores a downward aim and dashes horizontally instead.
 - **Neutral dash against a wall:** while airborne against a wall, a dash with no direction held goes away from the wall.
 - **Jump cancel:** jumping ends a dash. A ground jump keeps 60% of the dash's horizontal speed.
@@ -256,6 +257,10 @@ Between stages there is a ~600-unit blend zone where the palette, parallax layer
   - Left edge: a thin vertical tower progress bar with 10 stage ticks and a player dot.
   - Top right: timer and falls.
   - Bottom left: a small persistent label with the current stage name.
+- **Move prompts:** the first time the player reaches an obstacle that needs a new move (wall jump, dash, and so on), a small pop-up prompt appears.
+  - It shows key icons and a few words, e.g. "Hold toward the wall + Space".
+  - It hides once the move has been performed.
+  - Each prompt shows once per save.
 - **Stage banner:** when the player enters a new stage for the first time in a run (or re-enters after falling into a lower one on Hard), the stage number and name **slide in from the side of the screen**. It holds for ~2.5 s, then slides out. Example: `STAGE 4` on one line, `EMBER FORGE` large beneath it.
 - **Pause (Esc):** Resume · Restart · Settings · Quit to menu.
 - **Win screen:** reaching the crown triggers a flash and particle burst, then shows time, falls, mode, and "New best!" when applicable.
