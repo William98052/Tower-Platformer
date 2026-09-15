@@ -56,8 +56,11 @@ export function approach(value: number, target: number, maxDelta: number): numbe
 
 export function stepPlayer(p: Player, input: InputFrame, solids: readonly AABB[], dt = C.STEP): StepEvents {
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
+  tickTimers(p, input, dt);
   applyHorizontal(p, input, dt);
   applyGravity(p, dt);
+  tryJump(p, events);
+  applyJumpCut(p, input);
   moveAndResolve(p, solids, dt, events);
   return events;
 }
@@ -71,6 +74,34 @@ function applyHorizontal(p: Player, input: InputFrame, dt: number): void {
 
 function applyGravity(p: Player, dt: number): void {
   p.vy = Math.min(p.vy + C.GRAVITY * dt, C.MAX_FALL);
+}
+
+function tickTimers(p: Player, input: InputFrame, dt: number): void {
+  p.coyote = p.onGround ? C.COYOTE_TIME : Math.max(0, p.coyote - dt);
+  p.jumpBuffer = input.jumpPressed ? C.JUMP_BUFFER : Math.max(0, p.jumpBuffer - dt);
+}
+
+function tryJump(p: Player, events: StepEvents): void {
+  if (p.jumpBuffer <= 0) return;
+  if (p.onGround || p.coyote > 0) {
+    p.vy = -C.JUMP_VELOCITY;
+    p.jumpBuffer = 0;
+    p.coyote = 0;
+    p.onGround = false;
+    p.jumping = true;
+    events.jumped = true;
+  }
+}
+
+/** Releasing jump while still rising cuts the jump short. */
+function applyJumpCut(p: Player, input: InputFrame): void {
+  if (!p.jumping) return;
+  if (p.vy >= 0) {
+    p.jumping = false;
+  } else if (!input.jump) {
+    p.vy *= C.JUMP_CUT;
+    p.jumping = false;
+  }
 }
 
 function moveAndResolve(p: Player, solids: readonly AABB[], dt: number, events: StepEvents): void {
