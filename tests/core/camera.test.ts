@@ -101,4 +101,46 @@ describe('Camera', () => {
     expect(cam.offsetX).toBe(0);
     expect(cam.offsetY).toBe(0);
   });
+
+  it('does not snap back when a long fall ends', () => {
+    const cam = new Camera(960, 540, 960, 45000);
+    const dt = 1 / 60;
+    let y = 5000;
+    cam.snapTo(480, y);
+    for (let i = 0; i < 600; i++) {
+      y += 1200 * dt;
+      cam.follow(480, y, 1200, dt);
+    }
+    const a = cam.y;
+    y += 1200 * dt;
+    cam.follow(480, y, 1200, dt);
+    const speedBefore = (cam.y - a) / dt;
+    const b = cam.y;
+    cam.follow(480, y, 0, dt); // landed: target stops, vy drops to 0
+    const speedAfter = (cam.y - b) / dt;
+    // Easing keeps the camera moving the same way through a landing (unsmoothed it reversed to about -670 u/s).
+    expect(speedAfter).toBeGreaterThan(0);
+    expect(Math.abs(speedAfter - speedBefore)).toBeLessThan(450);
+  });
+
+  it('does not lurch when a fall speeds up past jump speed', () => {
+    const cam = new Camera(960, 540, 960, 45000);
+    const dt = 1 / 60;
+    let y = 5000;
+    let vy = 900;
+    cam.snapTo(480, y);
+    for (let i = 0; i < 120; i++) {
+      y += vy * dt;
+      cam.follow(480, y, vy, dt);
+    }
+    let maxSpeed = 0;
+    for (let i = 0; i < 120; i++) {
+      vy = Math.min(vy + 2600 * dt, 1200);
+      y += vy * dt;
+      const before = cam.y;
+      cam.follow(480, y, vy, dt);
+      maxSpeed = Math.max(maxSpeed, (cam.y - before) / dt);
+    }
+    expect(maxSpeed).toBeLessThan(1.5 * 1200);
+  });
 });

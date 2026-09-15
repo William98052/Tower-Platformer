@@ -26,6 +26,8 @@ export class Camera {
   private shakeTime = 0;
   private shakeDuration = 0;
   private shakeMagnitude = 0;
+  /** Fall lead, eased separately so it ramps in and out smoothly instead of snapping. */
+  private leadY = 0;
 
   constructor(
     readonly viewW: number,
@@ -34,29 +36,31 @@ export class Camera {
     public worldH: number,
   ) {}
 
-  /** Where the camera wants to be for a target center point and vertical speed. */
+  /** Where the camera settles for a target center point moving at a steady vertical speed. */
   desired(targetX: number, targetY: number, targetVy: number): { x: number; y: number } {
-    return {
-      x: clamp(targetX - this.viewW / 2, 0, Math.max(0, this.worldW - this.viewW)),
-      y: clamp(
-        targetY - this.viewH * TARGET_SCREEN_Y + fallLead(targetVy),
-        0,
-        Math.max(0, this.worldH - this.viewH),
-      ),
-    };
+    return this.framing(targetX, targetY, fallLead(targetVy));
   }
 
   follow(targetX: number, targetY: number, targetVy: number, dt: number): void {
-    const d = this.desired(targetX, targetY, targetVy);
     const k = 1 - Math.exp(-CAMERA_STIFFNESS * dt);
+    this.leadY += (fallLead(targetVy) - this.leadY) * k;
+    const d = this.framing(targetX, targetY, this.leadY);
     this.x += (d.x - this.x) * k;
     this.y += (d.y - this.y) * k;
   }
 
   snapTo(targetX: number, targetY: number): void {
-    const d = this.desired(targetX, targetY, 0);
+    this.leadY = 0;
+    const d = this.framing(targetX, targetY, 0);
     this.x = d.x;
     this.y = d.y;
+  }
+
+  private framing(targetX: number, targetY: number, lead: number): { x: number; y: number } {
+    return {
+      x: clamp(targetX - this.viewW / 2, 0, Math.max(0, this.worldW - this.viewW)),
+      y: clamp(targetY - this.viewH * TARGET_SCREEN_Y + lead, 0, Math.max(0, this.worldH - this.viewH)),
+    };
   }
 
   shake(magnitude: number, duration: number): void {
