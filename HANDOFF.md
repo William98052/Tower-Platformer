@@ -35,9 +35,10 @@ The game now boots into the real **Moss Ruins** stage with:
   - particles, squash and afterimages
   - debug overlay
 
-It's tested: **211 Vitest tests pass**, the typecheck is clean, and `npm run build` works. Visual inspection covered the bottom, middle, and finale sections; prompts, banner, checkpoints, Normal/Hard display, noclip, mode toggle, and section warp worked.
+It's tested: **215 Vitest tests pass**, the typecheck is clean, and `npm run build` works. Visual inspection covered the bottom, middle, and finale sections; prompts, banner, checkpoints, Normal/Hard display, noclip, mode toggle, and section warp worked.
 
 Recent changes driven by the user:
+- **Wall-jump shafts and section handoffs were made forgiving.** Vine climbs are capped at 250 units, the finale has broad overlapping landings, and every jump into the next checkpoint is 90–120 units with no cramped 50-unit filler hop.
 - **The vine shafts now use clean edge-to-edge joins.** The checkpoint floor runs directly into each pair of vine walls, exit ledges start at the outside wall edge, and the redundant ledge before the first wall-jump checkpoint was removed.
 - **Moss Ruins was visually and structurally revised.** The seven sections now have one classified main route with aligned section handoffs; the only recovery ledge is dimmed and reconnects to the route. The awkward triangular slope solids were removed in favor of stepped stone platforms. The background now uses larger arches, columns, roots, light shafts, and mist for clearer depth.
 - **Wall jumps were too hard.** The wall-jump pillar in the test room was widened and joined to the exit platform (`50b86a7`).

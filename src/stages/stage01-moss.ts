@@ -49,9 +49,8 @@ export const STAGE_01_MOSS: StageDef = {
       platform(120, 535, 220),
       platform(300, 410, 220),
       platform(500, 285, 210),
-      platform(630, 160, 210),
+      platform(630, 170, 210),
       platform(500, 70, 210),
-      platform(260, 20, 260),
     ], [
       { type: 'prompt', x: 45, y: 500, w: 260, h: 150, prompt: 'jump' },
       { type: 'mushroom', x: 565, y: 261, w: 90, h: 24, launch: 920 },
@@ -60,13 +59,14 @@ export const STAGE_01_MOSS: StageDef = {
     // 2. The route visibly enters one framed wall-jump shaft and exits to the right.
     section(1, 475, [
       platform(240, 660, 344),
-      platform(584, 280, 250),
-      platform(680, 150, 200),
-      platform(600, 20, 250),
-      vine(430, 280, 380),
-      vine(560, 280, 380),
+      platform(584, 410, 250),
+      platform(650, 285, 220),
+      platform(600, 180, 250),
+      platform(600, 70, 250),
+      vine(430, 410, 250),
+      vine(560, 410, 250),
     ], [
-      { type: 'prompt', x: 420, y: 270, w: 180, h: 400, prompt: 'wallJump' },
+      { type: 'prompt', x: 420, y: 400, w: 180, h: 270, prompt: 'wallJump' },
     ]),
 
     // 3. Overlapping one-way canopies make a single readable left-right switchback.
@@ -74,9 +74,9 @@ export const STAGE_01_MOSS: StageDef = {
       platform(580, 660, 356),
       platform(500, 535, 260, 'oneWay'),
       platform(300, 410, 260, 'oneWay'),
-      platform(120, 285, 250, 'oneWay'),
-      platform(350, 160, 260, 'oneWay'),
-      platform(650, 35, 240),
+      platform(120, 280, 250, 'oneWay'),
+      platform(350, 170, 260, 'oneWay'),
+      platform(650, 70, 240),
     ], []),
 
     // 4. Stepped stone terraces replace the old triangular ramps; mushrooms bridge the tall beats.
@@ -84,12 +84,12 @@ export const STAGE_01_MOSS: StageDef = {
       platform(620, 660, 316),
       platform(560, 535, 220),
       platform(390, 410, 220),
-      platform(240, 285, 200),
-      platform(380, 160, 220),
-      platform(560, 35, 260),
+      platform(240, 280, 200),
+      platform(380, 170, 220),
+      platform(560, 70, 260),
     ], [
       { type: 'mushroom', x: 620, y: 511, w: 90, h: 24, launch: 940 },
-      { type: 'mushroom', x: 290, y: 261, w: 90, h: 24, launch: 980 },
+      { type: 'mushroom', x: 290, y: 256, w: 90, h: 24, launch: 980 },
     ]),
 
     // 5. Alternating towers create obvious dash targets; one dim ledge catches a missed first dash.
@@ -97,9 +97,9 @@ export const STAGE_01_MOSS: StageDef = {
       platform(540, 660, 300),
       platform(620, 535, 240),
       platform(180, 410, 220),
-      platform(520, 285, 220),
-      platform(200, 160, 220),
-      platform(120, 35, 240),
+      platform(520, 280, 220),
+      platform(200, 170, 220),
+      platform(120, 70, 240),
       platform(410, 480, 100, 'oneWay', 'recovery'),
     ], [
       { type: 'prompt', x: 310, y: 370, w: 470, h: 230, prompt: 'dash' },
@@ -108,23 +108,25 @@ export const STAGE_01_MOSS: StageDef = {
     // 6. One S-shaped route feeds directly into a compact vine shaft and back out.
     section(5, 345, [
       platform(80, 660, 374),
-      platform(454, 280, 260),
-      platform(660, 160, 200, 'oneWay'),
-      platform(520, 35, 260),
-      vine(300, 280, 380),
-      vine(430, 280, 380),
+      platform(454, 410, 280),
+      platform(600, 280, 260, 'oneWay'),
+      platform(520, 170, 260),
+      platform(520, 70, 260),
+      vine(300, 410, 250),
+      vine(430, 410, 250),
     ], []),
 
     // 7. A centered finale chains mushroom, shaft and dash without side branches.
     section(6, 345, [
       platform(300, 660, 284),
-      platform(454, 280, 230),
-      platform(650, 160, 200),
+      platform(454, 410, 280),
+      platform(600, 285, 250),
+      platform(520, 160, 260),
       platform(500, 35, 280),
-      vine(300, 280, 380),
-      vine(430, 280, 380),
+      vine(300, 410, 250),
+      vine(430, 410, 250),
     ], [
-      { type: 'mushroom', x: 340, y: 636, w: 70, h: 24, launch: 1020 },
+      { type: 'mushroom', x: 640, y: 386, w: 70, h: 24, launch: 1020 },
     ]),
   ],
 };

@@ -25,6 +25,20 @@ describe('STAGE_01_MOSS', () => {
     }
   });
 
+  it('places every mushroom firmly on a platform', () => {
+    for (const section of STAGE_01_MOSS.sections) {
+      for (const mushroom of section.entities.filter((entity) => entity.type === 'mushroom')) {
+        const support = section.solids.find((solid) => (
+          solid.h <= 24
+          && mushroom.y + mushroom.h === solid.y
+          && mushroom.x >= solid.x
+          && mushroom.x + mushroom.w <= solid.x + solid.w
+        ));
+        expect(support, `section ${section.id} mushroom at ${mushroom.x},${mushroom.y}`).toBeDefined();
+      }
+    }
+  });
+
   it('has a continuous 24-unit shell on both sides', () => {
     for (const section of STAGE_01_MOSS.sections) {
       expect(section.solids).toContainEqual({ x: 0, y: 0, w: 24, h: section.height, surface: 'normal', role: 'boundary' });
@@ -100,6 +114,34 @@ describe('STAGE_01_MOSS', () => {
     }
   });
 
+  it('uses one reachable final jump into each checkpoint without a cramped extra ledge', () => {
+    for (let i = 0; i < STAGE_01_MOSS.sections.length - 1; i++) {
+      const lowerSection = STAGE_01_MOSS.sections[i];
+      const upperSection = STAGE_01_MOSS.sections[i + 1];
+      const exit = lowerSection.solids
+        .filter((solid) => solid.role === 'main' && solid.h <= 24)
+        .reduce((highest, solid) => solid.y < highest.y ? solid : highest);
+      const checkpointFloor = upperSection.solids.find((solid) => (
+        solid.h <= 24
+        && upperSection.checkpoint.x >= solid.x
+        && upperSection.checkpoint.x + 28 <= solid.x + solid.w
+        && upperSection.checkpoint.y + 28 <= solid.y
+      ));
+
+      expect(checkpointFloor, `checkpoint ${i + 1}`).toBeDefined();
+      const verticalClearance = lowerSection.height + exit.y - (checkpointFloor?.y ?? 0);
+      expect(verticalClearance, `checkpoint ${i + 1}`).toBeGreaterThanOrEqual(90);
+      expect(verticalClearance, `checkpoint ${i + 1}`).toBeLessThanOrEqual(120);
+
+      const route = lowerSection.solids
+        .filter((solid) => solid.role === 'main' && solid.h <= 24)
+        .sort((a, b) => b.y - a.y);
+      for (let j = 1; j < route.length; j++) {
+        expect(route[j - 1].y - route[j].y, `section ${i} route spacing ${j}`).toBeGreaterThanOrEqual(90);
+      }
+    }
+  });
+
   it('joins vine walls and platforms edge-to-edge without shoving rectangles through each other', () => {
     for (const section of STAGE_01_MOSS.sections) {
       const vines = section.solids.filter((solid) => solid.surface === 'vine');
@@ -126,5 +168,29 @@ describe('STAGE_01_MOSS', () => {
 
     const redundantApproachLedges = platforms.filter((solid) => solid !== floor && solid.y > Math.max(left.y, right.y) && solid.y < (floor?.y ?? 0));
     expect(redundantApproachLedges).toEqual([]);
+  });
+
+  it('keeps every wall-jump shaft short enough for an introductory stage', () => {
+    const vines = STAGE_01_MOSS.sections.flatMap((section) => section.solids)
+      .filter((solid) => solid.surface === 'vine');
+
+    expect(vines.length).toBeGreaterThan(0);
+    for (const vine of vines) expect(vine.h).toBeLessThanOrEqual(250);
+  });
+
+  it('gives the finale a short shaft followed by generous overlapping landings', () => {
+    const section = STAGE_01_MOSS.sections[6];
+    const platforms = section.solids
+      .filter((solid) => solid.role === 'main' && solid.h <= 24)
+      .sort((a, b) => b.y - a.y);
+
+    expect(platforms).toHaveLength(5);
+    for (let i = 2; i < platforms.length; i++) {
+      const lower = platforms[i - 1];
+      const upper = platforms[i];
+      const overlap = Math.min(lower.x + lower.w, upper.x + upper.w) - Math.max(lower.x, upper.x);
+      expect(lower.y - upper.y, `finale step ${i}`).toBeLessThanOrEqual(130);
+      expect(overlap, `finale landing ${i}`).toBeGreaterThanOrEqual(100);
+    }
   });
 });
