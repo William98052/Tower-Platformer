@@ -437,7 +437,7 @@ Commit: `feat: integrate paused application shell`
 - Events: `'uiMove' | 'uiConfirm' | 'jump' | 'wallJump' | 'dash' | 'land' | 'checkpoint'`.
 - Ambience states: `'off' | 'paused' | 'moss'`.
 
-- [ ] **Step 1: Write failing lifecycle and routing tests with a fake backend**
+- [x] **Step 1: Write failing lifecycle and routing tests with a fake backend**
 
 ```ts
 const audio = new AudioManager(fakeBackend());
@@ -451,17 +451,17 @@ expect(backend.sfxGain).toBe(0.25);
 
 Also assert unlock failure stays silent, repeated unlock is idempotent, master zero suppresses voices, landing detail changes synthesis parameters, and ambience state changes create/fade/stop exactly one loop.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/audio/audio.test.ts`
 
 Expected: FAIL because the audio module does not exist.
 
-- [ ] **Step 3: Implement the backend abstraction and silent-safe manager**
+- [x] **Step 3: Implement the backend abstraction and silent-safe manager**
 
 The browser backend wraps `AudioContext`, gain nodes, oscillators, buffer sources, and automation. The manager catches construction, resume, and voice errors once and becomes a no-op afterward.
 
-- [ ] **Step 4: Implement synthesized voices**
+- [x] **Step 4: Implement synthesized voices**
 
 - Jump: short rising sine.
 - Wall jump: rising triangle plus a quiet noise tick.
@@ -471,7 +471,7 @@ The browser backend wraps `AudioContext`, gain nodes, oscillators, buffer source
 - UI move/confirm: very short soft ticks.
 - Moss ambience: looping generated noise through a low-pass filter plus a low oscillator, both below SFX level.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `npx vitest run tests/audio/audio.test.ts && npm run typecheck`
 
