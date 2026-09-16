@@ -327,7 +327,7 @@ Commit: `feat: add menu and run lifecycle controller`
 - Produces `MenuView` with `render(model)`, `showNotice(message)`, `beginBindingCapture(action, slot)`, and `destroy()`.
 - Consumes a serializable `MenuModel` from `AppController` and emits a discriminated `MenuAction` callback.
 
-- [ ] **Step 1: Write failing DOM-structure and action tests**
+- [x] **Step 1: Write failing DOM-structure and action tests**
 
 Use a minimal fake document rather than adding jsdom. Test pure helpers first:
 
@@ -339,25 +339,25 @@ expect(settingsRows(DEFAULT_SETTINGS)).toHaveLength(10);
 
 Test action parsing for Play, Back, Continue, New Run, Pause actions, sliders, toggles, reset, confirmation, and binding slots.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/ui/menu.test.ts`
 
 Expected: FAIL because menu helpers do not exist.
 
-- [ ] **Step 3: Implement pure menu models and semantic DOM rendering**
+- [x] **Step 3: Implement pure menu models and semantic DOM rendering**
 
 Add `<div id="menus"></div>` and `<div id="notice" role="status" aria-live="polite"></div>` beside the canvas. `MenuView` renders headings, labeled buttons, range inputs, checkboxes, and binding buttons. It restores focus to the first enabled control after screen changes and traps focus within an open overlay.
 
-- [ ] **Step 4: Implement key capture**
+- [x] **Step 4: Implement key capture**
 
 Capture listens only while a binding button is armed. Modifier-only keys are ignored, `Escape` cancels, blur cancels, and any accepted `KeyboardEvent.code` emits `{ type: 'replaceBinding', action, slot, code }`.
 
-- [ ] **Step 5: Style the responsive overlays**
+- [x] **Step 5: Style the responsive overlays**
 
 Use a centered `.menu-panel` with translucent `#0d1714`, `#c4dea0` borders, cream text, and `clamp()` sizing. Define clear `:focus-visible`, disabled, capture, card, slider, toggle, confirmation, and notice states. On narrow screens, stack mode cards and allow the settings panel to scroll internally.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npx vitest run tests/ui/menu.test.ts && npm run typecheck && npm run build`
 
