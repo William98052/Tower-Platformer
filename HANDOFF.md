@@ -14,10 +14,12 @@ It has two difficulty modes:
 - **Design spec (source of truth):** `docs/superpowers/specs/2026-09-14-tower-platformer-design.md`
 - **Milestone 1 plan (done):** `docs/superpowers/plans/2026-09-14-m1-movement-feel.md`. Its end has "Implementation notes: agreed deviations" and a "Deferred" list.
 - **Milestone 2 plan (implemented):** `docs/superpowers/plans/2026-09-15-m2-moss-ruins.md`.
+- **Milestone 3 spec (implemented):** `docs/superpowers/specs/2026-09-15-m3-menus-saving-settings-sound-design.md`.
+- **Milestone 3 plan (implemented):** `docs/superpowers/plans/2026-09-15-m3-menus-saving-settings-sound.md`.
 
 ## Current status
 
-**Milestone 2 (Moss Ruins) is implemented on `main`.** Automated and visual QA are complete; the remaining check is the user's end-to-end feel playtest of the full seven-section climb.
+**Milestone 3 (menus, saving, settings, and sound) is implemented on `main`.** Automated QA and the browser walkthrough are complete. The remaining subjective checks are the user's full-climb feel pass and listening to the synthesized sounds at their preferred volume.
 
 The game now boots into the real **Moss Ruins** stage with:
 - all 7 fixed, hand-built sections
@@ -27,6 +29,11 @@ The game now boots into the real **Moss Ruins** stage with:
 - Hard mode knockback, stun, and invulnerability rules
 - timer, falls, tower progress, stage label, stage banner, and move prompts
 - debug noclip, mode toggle, slow motion, and section warp
+- a title screen, mode selection, pause menu, confirmations, and keyboard focus trapping
+- versioned local saves for separate Normal and Hard runs, records, settings, and completed prompts
+- checkpoint-safe Normal Continue and five-second Hard autosaves with position and velocity
+- persistent master/SFX volume, two keyboard bindings per action, conflict swapping, screen shake, reduced effects, and confirmed Reset Defaults
+- synthesized movement/UI/checkpoint sounds plus Moss Ruins ambience that ducks while paused
 - the complete Milestone 1 movement set:
   - run and a variable-height jump
   - wall slide and wall jump
@@ -35,7 +42,7 @@ The game now boots into the real **Moss Ruins** stage with:
   - particles, squash and afterimages
   - debug overlay
 
-It's tested: **215 Vitest tests pass**, the typecheck is clean, and `npm run build` works. Visual inspection covered the bottom, middle, and finale sections; prompts, banner, checkpoints, Normal/Hard display, noclip, mode toggle, and section warp worked.
+It's tested: **254 Vitest tests pass across 28 files**, the typecheck is clean, and `npm run build` works. The browser walkthrough covered title/mode navigation, Normal Continue across reload, Hard timed autosave across reload, pause/restart/quit, settings persistence, live rebinding, Reset Defaults confirmation, and keyboard focus wrapping. Browser diagnostics showed no console errors.
 
 Recent changes driven by the user:
 - **Wall-jump shafts and section handoffs were made forgiving.** Each wall-jump room now starts on a broad flat checkpoint runway outside the shaft, has a 100-unit walk-under entrance, and uses a short 250-unit alternating climb. The finale has broad overlapping landings, and every jump into the next checkpoint is 90–120 units with no cramped filler hop.
@@ -45,17 +52,17 @@ Recent changes driven by the user:
 - **Stamina was built and then removed at the user's request**, because it made wall hops impossible. It lost the dash refill you get from sliding on a new wall.
   - The work is kept on the **local-only** branch `stamina-shelved` (commits `ef8869f` and `79b8d81`, not pushed).
   - The spec marks stamina as "deferred". If it comes back, keep the refill from sliding on a new wall.
-- **Move prompts are implemented in-run.** Their completed state is deliberately not persisted yet because save data belongs to Milestone 3.
+- **Move prompts are implemented in-run and persisted.** Completed prompts stay dismissed across runs and reloads.
 
 ## Next up
 
-1. Have the user play the full Moss Ruins climb in Normal and tune any jumps, gaps, checkpoint positions, or prompts that feel wrong.
-2. After that feel pass, start **Milestone 3: menus, saving, settings, and sound**.
+1. Have the user play the full Moss Ruins climb in Normal, listen to the new audio mix, and tune any movement, level, or volume details that feel wrong.
+2. Start **Milestone 4: stages 2–10**, continuing with fixed, hand-built layouts. Build and review the next stages in small batches rather than all nine at once.
 
 Milestone 3 should persist Normal/Hard runs, records, settings, and completed move prompts. The current prompt completion set only lives for the browser session.
 
 Later milestones:
-- **M3:** menus, saving, settings, sound
+- **M3:** menus, saving, settings, sound — implemented
 - **M4:** stages 2–10
 - **M5:** balancing, performance and the win screen
 
@@ -76,6 +83,7 @@ npm run build        # tsc --noEmit && vite build
   - Move: arrows or WASD
   - Jump: Space or C
   - Dash: Shift or X
+  - Pause/resume: Escape
   - Respawn: R
   - Debug overlay: `` ` ``
   - Slow motion: T (0.25×)
@@ -89,6 +97,8 @@ npm run build        # tsc --noEmit && vite build
   - `constants.ts`: every tuning number
   - `loop.ts`: `FixedStep`, a 120 Hz accumulator with a 0.25 s clamp
   - `input.ts`: `InputTracker` edge detection, gamepad support, `withoutPresses` for the second and later steps in a frame
+  - `settings.ts`: validated defaults, persistent settings, and collision-free two-slot key rebinding
+  - `save.ts`: versioned local save validation, partial recovery, and unavailable-storage fallback
   - `camera.ts`: exponential follow, eased fall lead, shake
 - `src/physics/`
   - `aabb.ts` and `collision.ts`: axis-separated AABB (X then Y), ceiling corner nudge, one-way filtering, and slope sampling
@@ -104,10 +114,12 @@ npm run build        # tsc --noEmit && vite build
 - `src/entities/`: entity interface, mushroom, prompt trigger, and factory.
 - `src/modes/`: Normal/Hard run state and pure mode rules.
 - `src/game/game.ts`: gameplay orchestrator for world, player, entities, checkpoints, modes, prompts, banner, warps, and noclip.
+- `src/app/controller.ts`: title/mode/pause/settings state, confirmations, Continue restore, and autosave policy.
+- `src/audio/audio.ts`: fault-tolerant Web Audio manager, synthesized SFX, and adaptive ambience.
 - `src/render/`: parallax, surface/entity/checkpoint drawing, player drawing, and effects. Canvas 2D with no engine.
-- `src/ui/`: HUD formatting/drawing, move prompts, and stage banner.
+- `src/ui/`: HUD formatting/drawing, move prompts, stage banner, and semantic HTML menu/settings UI.
 - `src/debug/overlay.ts`: debug readout, slow-motion, noclip/mode/warp commands.
-- `src/main.ts`: thin browser wiring for resize/DPR, input, fixed-step loop, camera/effects, interpolation, and draw order.
+- `src/main.ts`: thin browser wiring for resize/DPR, input, fixed-step loop, app/menu state, saves, audio, camera/effects, interpolation, and draw order.
 - `tests/`: mirrors `src/`; the old test-room route tests remain as movement-regression coverage.
 
 **Coordinates:** the logical view is 960×540, y points down, scaled by `scale × devicePixelRatio`.

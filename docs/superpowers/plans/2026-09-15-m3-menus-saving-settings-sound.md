@@ -541,7 +541,7 @@ Commit: `feat: connect persistent menus and audio`
 **Interfaces:**
 - No new code interfaces; this task validates the complete milestone.
 
-- [ ] **Step 1: Run fresh automated verification**
+- [x] **Step 1: Run fresh automated verification**
 
 Run each command from a clean shell and record exact totals:
 
@@ -552,7 +552,7 @@ npm run build
 git diff --check
 ```
 
-- [ ] **Step 2: Complete the browser walkthrough**
+- [x] **Step 2: Complete the browser walkthrough**
 
 Verify in order:
 
@@ -567,15 +567,15 @@ Verify in order:
 9. Every implemented sound plays, volume changes are live, mute is silent, and Pause ducks ambience.
 10. Corrupt localStorage is discarded with one notice and the game still starts.
 
-- [ ] **Step 3: Fix any walkthrough defects with their own red-green cycle**
+- [x] **Step 3: Fix any walkthrough defects with their own red-green cycle**
 
 For each logic defect, add the smallest failing Vitest case before changing production code. For rendering/audio-only defects, record the reproduction in the commit message and re-run the affected walkthrough step after the change.
 
-- [ ] **Step 4: Update project handoff and plan checkboxes**
+- [x] **Step 4: Update project handoff and plan checkboxes**
 
 Document Milestone 3 status, controls, save semantics, settings, audio behavior, exact test count, and the remaining Milestone 4/5 work. Mark completed plan steps only after their evidence exists.
 
-- [ ] **Step 5: Final verification and commit**
+- [x] **Step 5: Final verification and commit**
 
 Run: `npm test && npm run typecheck && npm run build && git diff --check && git status --short --branch`
 
