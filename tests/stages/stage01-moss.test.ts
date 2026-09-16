@@ -55,7 +55,7 @@ describe('STAGE_01_MOSS', () => {
         const upperY = levels[i];
         const verticalGap = lowerY - upperY;
         if (verticalGap > 180) {
-          const bridgingVines = section.solids.filter((solid) => solid.surface === 'vine' && solid.y <= upperY && solid.y + solid.h >= lowerY);
+          const bridgingVines = section.solids.filter((solid) => solid.surface === 'vine' && solid.y <= upperY && solid.y + solid.h >= lowerY - 120);
           expect(bridgingVines.length, `section ${section.id}`).toBeGreaterThanOrEqual(2);
         }
       }
@@ -92,7 +92,7 @@ describe('STAGE_01_MOSS', () => {
         const horizontalGap = Math.max(0, upper.x - (lower.x + lower.w), lower.x - (upper.x + upper.w));
         const verticalGap = lower.y - upper.y;
         if (verticalGap > 145) {
-          const bridgingVines = vines.filter((vine) => vine.y <= upper.y && vine.y + vine.h >= lower.y);
+          const bridgingVines = vines.filter((vine) => vine.y <= upper.y && vine.y + vine.h >= lower.y - 120);
           expect(bridgingVines.length, `section ${section.id} shaft link ${i}`).toBeGreaterThanOrEqual(2);
         } else {
           expect(verticalGap, `section ${section.id} vertical link ${i}`).toBeLessThanOrEqual(145);
@@ -154,20 +154,34 @@ describe('STAGE_01_MOSS', () => {
     }
   });
 
-  it('starts the first wall jump directly from its checkpoint floor', () => {
-    const section = STAGE_01_MOSS.sections[1];
-    const [left, right] = section.solids.filter((solid) => solid.surface === 'vine').sort((a, b) => a.x - b.x);
-    const platforms = section.solids.filter((solid) => solid.h <= 24);
-    const floor = platforms.find((solid) => section.checkpoint.y + 28 <= solid.y && section.checkpoint.x >= solid.x && section.checkpoint.x + 28 <= solid.x + solid.w);
+  it('starts every wall jump from an open checkpoint runway', () => {
+    for (const sectionIndex of [1, 5, 6]) {
+      const section = STAGE_01_MOSS.sections[sectionIndex];
+      const [left, right] = section.solids.filter((solid) => solid.surface === 'vine').sort((a, b) => a.x - b.x);
+      const platforms = section.solids.filter((solid) => solid.h <= 24);
+      const floor = platforms.find((solid) => section.checkpoint.y + 28 <= solid.y && section.checkpoint.x >= solid.x && section.checkpoint.x + 28 <= solid.x + solid.w);
 
-    expect(floor).toBeDefined();
-    expect(section.checkpoint.x).toBeGreaterThanOrEqual(left.x + left.w);
-    expect(section.checkpoint.x + 28).toBeLessThanOrEqual(right.x);
-    expect(left.y + left.h).toBe(floor?.y);
-    expect(right.y + right.h).toBe(floor?.y);
+      expect(floor, `section ${section.id} checkpoint floor`).toBeDefined();
+      expect(section.checkpoint.x + 28, `section ${section.id} checkpoint outside shaft`).toBeLessThanOrEqual(left.x);
+      expect(floor?.x, `section ${section.id} runway start`).toBeLessThanOrEqual(section.checkpoint.x);
+      expect((floor?.x ?? 0) + (floor?.w ?? 0), `section ${section.id} runway end`).toBeGreaterThanOrEqual(right.x + right.w);
 
-    const redundantApproachLedges = platforms.filter((solid) => solid !== floor && solid.y > Math.max(left.y, right.y) && solid.y < (floor?.y ?? 0));
-    expect(redundantApproachLedges).toEqual([]);
+      const entranceGap = (floor?.y ?? 0) - (left.y + left.h);
+      expect(entranceGap, `section ${section.id} walk-under entrance`).toBeGreaterThanOrEqual(80);
+      expect(entranceGap, `section ${section.id} walk-under entrance`).toBeLessThanOrEqual(120);
+      expect(right.y + right.h).toBe(left.y + left.h);
+
+      const exit = platforms.find((solid) => solid.y === right.y && solid.x === right.x + right.w);
+      expect(exit, `section ${section.id} shaft exit`).toBeDefined();
+
+      if (sectionIndex > 0) {
+        const priorExit = STAGE_01_MOSS.sections[sectionIndex - 1].solids
+          .filter((solid) => solid.role === 'main' && solid.h <= 24)
+          .reduce((highest, solid) => solid.y < highest.y ? solid : highest);
+        const overlap = Math.min(priorExit.x + priorExit.w, (floor?.x ?? 0) + (floor?.w ?? 0)) - Math.max(priorExit.x, floor?.x ?? 0);
+        expect(overlap, `section ${section.id} incoming landing`).toBeGreaterThanOrEqual(160);
+      }
+    }
   });
 
   it('keeps every wall-jump shaft short enough for an introductory stage', () => {
@@ -184,7 +198,7 @@ describe('STAGE_01_MOSS', () => {
       .filter((solid) => solid.role === 'main' && solid.h <= 24)
       .sort((a, b) => b.y - a.y);
 
-    expect(platforms).toHaveLength(5);
+    expect(platforms).toHaveLength(4);
     for (let i = 2; i < platforms.length; i++) {
       const lower = platforms[i - 1];
       const upper = platforms[i];
