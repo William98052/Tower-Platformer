@@ -11,8 +11,8 @@ import type { PromptId, StageDef, World, WorldSection } from '../stages/types';
 import { activeSections, buildWorld } from '../stages/world';
 import { StageBanner } from '../ui/banner';
 import { completePromptsFromEvents, createPromptState, showPrompt, type PromptState } from '../ui/prompts';
-import type { RunSave } from './run-snapshot';
-import { validateRunSave } from './run-snapshot';
+import type { RunSaveV2 } from './run-snapshot';
+import { validateRunSaveV2 } from './run-snapshot';
 
 export interface GameStepResult extends StepEvents {
   respawned: boolean;
@@ -127,22 +127,26 @@ export class Game {
     this.player.vy = 0;
   }
 
-  snapshot(): RunSave {
+  snapshot(): RunSaveV2 {
     const common = {
       stageId: this.world.stage.id,
       elapsed: this.run.elapsed,
       falls: this.run.falls,
-      bestY: this.run.bestY,
+      bestHeight: this.world.height - this.run.bestY,
     };
     if (this.run.mode === 'normal') {
-      return { kind: 'normal', ...common, section: this.run.checkpoint.section };
+      return {
+        kind: 'normal',
+        ...common,
+        localSection: this.world.sections[this.run.checkpoint.section].localSection,
+      };
     }
     return {
       kind: 'hard',
       ...common,
-      section: this.currentSection,
+      localSection: this.world.sections[this.currentSection].localSection,
       x: this.player.x,
-      y: this.player.y,
+      stageY: this.world.height - this.player.y,
       vx: this.player.vx,
       vy: this.player.vy,
     };
@@ -153,26 +157,30 @@ export class Game {
     return order.filter((id) => this.prompts.completed.has(id));
   }
 
-  static restore(stage: StageDef, snapshot: RunSave, completedPrompts: Iterable<PromptId>): Game | null {
-    const checked = validateRunSave(snapshot, snapshot.kind);
+  static restore(stage: StageDef, snapshot: RunSaveV2, completedPrompts: Iterable<PromptId>): Game | null {
+    const checked = validateRunSaveV2(snapshot, snapshot.kind);
     if (!checked || checked.stageId !== stage.id) return null;
 
     const game = new Game(checked.kind, stage, completedPrompts);
-    if (checked.section >= game.world.sections.length) return null;
+    const targetIndex = game.world.sections.findIndex((section) =>
+      section.stageId === checked.stageId && section.localSection === checked.localSection);
+    if (targetIndex < 0) return null;
+    const bestY = game.world.height - checked.bestHeight;
+    game.time = checked.elapsed;
 
     if (checked.kind === 'normal') {
-      const target = game.world.sections[checked.section];
-      game.run = createRunState('normal', target.checkpoint, checked.section);
+      const target = game.world.sections[targetIndex];
+      game.run = createRunState('normal', target.checkpoint, targetIndex);
       game.run.elapsed = checked.elapsed;
       game.run.falls = checked.falls;
-      game.run.bestY = checked.bestY;
-      game.run.peakSinceLanding = checked.bestY;
+      game.run.bestY = bestY;
+      game.run.peakSinceLanding = bestY;
       Object.assign(game.player, createPlayer(target.checkpoint.x, target.checkpoint.y));
-      game.currentSection = checked.section;
+      game.currentSection = targetIndex;
       return game;
     }
 
-    const candidate = { x: checked.x, y: checked.y, w: game.player.w, h: game.player.h };
+    const candidate = { x: checked.x, y: game.world.height - checked.stageY, w: game.player.w, h: game.player.h };
     if (candidate.x < 0 || candidate.y < 0
       || candidate.x + candidate.w > game.world.width
       || candidate.y + candidate.h > game.world.height
@@ -182,12 +190,12 @@ export class Game {
 
     Object.assign(game.player, candidate, { vx: checked.vx, vy: checked.vy, onGround: false });
     const derivedSection = game.sectionAt(game.player.y + game.player.h / 2);
-    if (derivedSection !== checked.section) return null;
+    if (derivedSection !== targetIndex) return null;
     game.currentSection = derivedSection;
     game.run.elapsed = checked.elapsed;
     game.run.falls = checked.falls;
-    game.run.bestY = checked.bestY;
-    game.run.peakSinceLanding = checked.bestY;
+    game.run.bestY = bestY;
+    game.run.peakSinceLanding = bestY;
     return game;
   }
 

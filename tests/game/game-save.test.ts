@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '../../src/game/game';
 import {
   validateRunSaveV2,
-  type HardRunSave,
   type HardRunSaveV2,
   type NormalRunSaveV2,
 } from '../../src/game/run-snapshot';
@@ -19,7 +18,10 @@ describe('Game run snapshots', () => {
     game.run.bestY = checkpoint.y - 200;
 
     const snapshot = game.snapshot();
-    expect(snapshot).toEqual({ kind: 'normal', stageId: 1, section: 2, elapsed: 12.5, falls: 3, bestY: checkpoint.y - 200 });
+    expect(snapshot).toEqual({
+      kind: 'normal', stageId: 1, localSection: 2,
+      elapsed: 12.5, falls: 3, bestHeight: game.world.height - checkpoint.y + 200,
+    });
 
     const restored = Game.restore(STAGE_01_MOSS, snapshot, []);
     expect(restored).not.toBeNull();
@@ -46,10 +48,10 @@ describe('Game run snapshots', () => {
   });
 
   it('rejects Hard restores outside the world, inside a solid, or for another stage', () => {
-    const base: HardRunSave = {
-      kind: 'hard', stageId: 1, section: 0,
-      x: 100, y: 4820, vx: 0, vy: 0,
-      elapsed: 1, falls: 0, bestY: 4820,
+    const base: HardRunSaveV2 = {
+      kind: 'hard', stageId: 1, localSection: 0,
+      x: 100, stageY: 80, vx: 0, vy: 0,
+      elapsed: 1, falls: 0, bestHeight: 80,
     };
     expect(Game.restore(STAGE_01_MOSS, { ...base, x: -1 }, [])).toBeNull();
     expect(Game.restore(STAGE_01_MOSS, { ...base, x: 0 }, [])).toBeNull();

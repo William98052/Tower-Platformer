@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { AppController } from '../../src/app/controller';
-import { SaveStore, type StorageLike } from '../../src/core/save';
+import {
+  SAVE_KEY_V1,
+  SAVE_KEY_V2,
+  SaveStore,
+  type SaveDataV1,
+  type StorageLike,
+} from '../../src/core/save';
 import { EMPTY_INPUT } from '../../src/core/input';
 import { DEFAULT_SETTINGS } from '../../src/core/settings';
-import type { HardRunSave } from '../../src/game/run-snapshot';
+import type { HardRunSaveV2 } from '../../src/game/run-snapshot';
 
-function memoryStorage(): StorageLike {
-  const values = new Map<string, string>();
+function memoryStorage(initial: Record<string, string> = {}): StorageLike & { values: Map<string, string> } {
+  const values = new Map(Object.entries(initial));
   return {
+    values,
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => { values.set(key, value); },
     removeItem: (key) => { values.delete(key); },
@@ -90,7 +97,10 @@ describe('AppController persistence policy', () => {
     const checkpoint = app.game!.world.sections[1].checkpoint;
     app.game!.run.checkpoint = { ...checkpoint, section: 1 };
     app.afterStep({ jumped: false, wallJumped: false, dashed: false, landed: 0, respawned: false, checkpointActivated: true, promptCompleted: null });
-    expect(store.load().runs.normal).toMatchObject({ kind: 'normal', section: 1 });
+    expect(store.load().runs.normal).toMatchObject({
+      kind: 'normal', stageId: 1, localSection: 1,
+      bestHeight: app.game!.world.height - app.game!.run.bestY,
+    });
   });
 
   it('autosaves Hard at five seconds but not before', () => {
@@ -100,7 +110,10 @@ describe('AppController persistence policy', () => {
     app.advanceRealTime(4.99);
     expect(store.load().runs.hard).toBeNull();
     app.advanceRealTime(0.01);
-    expect(store.load().runs.hard).toMatchObject({ kind: 'hard' });
+    expect(store.load().runs.hard).toMatchObject({
+      kind: 'hard', stageId: 1, localSection: 0,
+      stageY: app.game!.world.height - app.game!.player.y,
+    });
   });
 
   it('saves either mode on pause and quit', () => {
@@ -135,10 +148,10 @@ describe('AppController persistence policy', () => {
 
   it('clears only a geometrically invalid Continue snapshot', () => {
     const { app, store } = makeController();
-    const invalid: HardRunSave = {
-      kind: 'hard', stageId: 1, section: 0,
-      x: 0, y: 4820, vx: 0, vy: 0,
-      elapsed: 1, falls: 0, bestY: 4820,
+    const invalid: HardRunSaveV2 = {
+      kind: 'hard', stageId: 1, localSection: 0,
+      x: 0, stageY: 80, vx: 0, vy: 0,
+      elapsed: 1, falls: 0, bestHeight: 80,
     };
     store.update((save) => { save.runs.hard = invalid; });
     app.openModeSelect();
@@ -147,6 +160,35 @@ describe('AppController persistence policy', () => {
     expect(app.screen).toBe('modeSelect');
     expect(store.load().runs.hard).toBeNull();
     expect(app.notice?.message).toMatch(/could not be restored/i);
+  });
+
+  it('continues a Normal run after SaveStore migrates it from version 1', () => {
+    const legacy: SaveDataV1 = {
+      version: 1,
+      settings: DEFAULT_SETTINGS,
+      completedPrompts: ['jump'],
+      runs: {
+        normal: { kind: 'normal', stageId: 1, section: 2, elapsed: 12.5, falls: 3, bestY: 3300 },
+        hard: null,
+      },
+      records: {
+        normal: { bestHeight: 1600, bestTime: null, fewestFalls: null },
+        hard: { bestHeight: 0, bestTime: null, fewestFalls: null },
+      },
+    };
+    const storage = memoryStorage({ [SAVE_KEY_V1]: JSON.stringify(legacy) });
+    const store = new SaveStore(storage);
+    const app = new AppController(store);
+
+    app.openModeSelect();
+
+    expect(app.continueAvailable('normal')).toBe(true);
+    expect(app.continueRun('normal')).toBe(true);
+    expect(app.game?.currentSection).toBe(2);
+    expect(app.game?.run).toMatchObject({ elapsed: 12.5, falls: 3, bestY: 3300 });
+    expect(app.game?.completedPrompts()).toEqual(['jump']);
+    expect(storage.getItem(SAVE_KEY_V1)).toBeNull();
+    expect(storage.getItem(SAVE_KEY_V2)).not.toBeNull();
   });
 });
 
