@@ -129,7 +129,7 @@ Commit: `feat: add persistent game settings model`
 - Produces `SaveDataV1`, `DEFAULT_SAVE`, `StorageLike`, and `SaveStore` with `load()`, `write(data)`, `update(mutator)`, `available`, and `notice`.
 - Consumes `Settings`, `DEFAULT_SETTINGS`, `validateSettings`, `Mode`, and `PromptId`.
 
-- [ ] **Step 1: Write failing round-trip and default tests**
+- [x] **Step 1: Write failing round-trip and default tests**
 
 ```ts
 const storage = memoryStorage();
@@ -140,13 +140,13 @@ expect(store.write(save)).toBe(true);
 expect(new SaveStore(storage).load().completedPrompts).toEqual(['jump']);
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/core/save.test.ts`
 
 Expected: FAIL because the save module does not exist.
 
-- [ ] **Step 3: Implement schema and serialization**
+- [x] **Step 3: Implement schema and serialization**
 
 ```ts
 export interface SaveDataV1 {
@@ -166,15 +166,15 @@ export interface StorageLike {
 
 Use the key `tower-platformer.save.v1`. Parse unknown data field-by-field; deduplicate known prompt IDs; validate finite numeric values and the snapshot discriminator. Unknown versions and invalid top-level data return a fresh deep default.
 
-- [ ] **Step 4: Write failing corruption and unavailable-storage tests**
+- [x] **Step 4: Write failing corruption and unavailable-storage tests**
 
 Cover invalid JSON, version `99`, a corrupt Normal run beside a valid Hard run, `getItem` throwing, and `setItem` throwing. Assert that only the invalid run is cleared where possible, `available` becomes false after an exception, and `notice` contains one stable user-facing message.
 
-- [ ] **Step 5: Implement safe partial validation and failure isolation**
+- [x] **Step 5: Implement safe partial validation and failure isolation**
 
 All adapter access stays inside `try/catch`. `load()` caches its validated document; `update()` clones it, applies one synchronous mutator, validates, and attempts one full-document write. A write failure preserves the in-memory update.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npx vitest run tests/core/save.test.ts tests/core/settings.test.ts`
 
