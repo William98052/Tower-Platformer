@@ -187,7 +187,11 @@ function renderScreen(model: MenuModel): string {
 }
 
 function renderConfirmation(pending: PendingConfirmation): string {
-  const message = pending.kind === 'restart' ? 'Restart this run from the beginning?' : `Replace the saved ${pending.mode} run?`;
+  const message = pending.kind === 'restart'
+    ? 'Restart this run from the beginning?'
+    : pending.kind === 'resetSettings'
+      ? 'Restore every setting and key binding to its default?'
+      : `Replace the saved ${pending.mode} run?`;
   return panel('Are you sure?', `<p>${message}</p>${button('confirm', 'Confirm')}${button('cancel', 'Cancel', 'secondary')}`);
 }
 

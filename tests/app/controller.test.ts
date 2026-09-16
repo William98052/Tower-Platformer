@@ -65,6 +65,21 @@ describe('AppController screen flow', () => {
     app.closeSettings();
     expect(app.screen).toBe('title');
   });
+
+  it('confirms before resetting settings to defaults', () => {
+    const { app } = makeController();
+    app.updateSettings({ ...DEFAULT_SETTINGS, masterVolume: 0.25, screenShake: false });
+    app.openSettings();
+
+    app.resetSettings();
+    expect(app.pendingConfirmation).toEqual({ kind: 'resetSettings' });
+    expect(app.settings.masterVolume).toBe(0.25);
+
+    app.confirm();
+    expect(app.pendingConfirmation).toBeNull();
+    expect(app.screen).toBe('settings');
+    expect(app.settings).toEqual(DEFAULT_SETTINGS);
+  });
 });
 
 describe('AppController persistence policy', () => {

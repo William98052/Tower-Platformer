@@ -104,9 +104,13 @@ function handleMenuAction(action: MenuAction): void {
   if (action.type === 'resume') app.resume();
   if (action.type === 'restart') app.restart();
   if (action.type === 'quit') app.quitToTitle();
-  if (action.type === 'confirm') app.confirm();
+  if (action.type === 'confirm') {
+    app.confirm();
+    settings = app.settings;
+    applySettings(settings);
+  }
   if (action.type === 'cancel') app.cancelConfirmation();
-  if (action.type === 'resetSettings') updateSettings(DEFAULT_SETTINGS);
+  if (action.type === 'resetSettings') app.resetSettings();
   if (action.type === 'setVolume') updateSettings({ ...settings, [action.name]: action.value });
   if (action.type === 'setToggle') updateSettings({ ...settings, [action.name]: action.value });
   if (action.type === 'beginBinding') {

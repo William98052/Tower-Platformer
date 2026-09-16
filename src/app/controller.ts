@@ -1,6 +1,7 @@
 import type { SaveStore } from '../core/save';
 import type { InputFrame } from '../core/input';
 import type { Settings } from '../core/settings';
+import { DEFAULT_SETTINGS } from '../core/settings';
 import { Game, type GameStepResult } from '../game/game';
 import type { Mode } from '../modes/run-state';
 import { STAGE_01_MOSS } from '../stages/stage01-moss';
@@ -16,7 +17,8 @@ export interface AppNotice {
 
 export type PendingConfirmation =
   | { kind: 'newRun'; mode: Mode }
-  | { kind: 'restart'; mode: Mode };
+  | { kind: 'restart'; mode: Mode }
+  | { kind: 'resetSettings' };
 
 export class AppController {
   screen: Screen = 'title';
@@ -112,10 +114,18 @@ export class AppController {
     if (this.screen === 'settings') this.screen = this.settingsOrigin;
   }
 
+  resetSettings(): void {
+    if (this.screen === 'settings') this.pendingConfirmation = { kind: 'resetSettings' };
+  }
+
   confirm(): void {
     const pending = this.pendingConfirmation;
     if (!pending) return;
     this.pendingConfirmation = null;
+    if (pending.kind === 'resetSettings') {
+      this.updateSettings(DEFAULT_SETTINGS);
+      return;
+    }
     this.startFresh(pending.mode);
   }
 
