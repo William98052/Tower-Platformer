@@ -42,7 +42,17 @@ export interface StageDef {
   sections: SectionDef[];
 }
 
+export interface TowerDef {
+  stages: StageDef[];
+}
+
 export interface WorldSection {
+  globalIndex: number;
+  stageId: number;
+  stageName: string;
+  localSection: number;
+  theme: ThemeDef;
+  /** Compatibility alias until gameplay migrates to global section identity. */
   id: number;
   top: number;
   bottom: number;
@@ -55,6 +65,8 @@ export interface WorldSection {
 export interface World {
   width: number;
   height: number;
+  tower: TowerDef;
+  /** Compatibility alias until gameplay reads its current stage from the tower. */
   stage: StageDef;
   sections: WorldSection[];
   solids: SolidDef[];

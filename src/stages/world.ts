@@ -1,17 +1,29 @@
 import { MIN_SOLID_THICKNESS, VIEW_W } from '../core/constants';
-import type { EntityDef, StageDef, World, WorldSection } from './types';
+import type { EntityDef, StageDef, TowerDef, World, WorldSection } from './types';
 
 function translateEntity(entity: EntityDef, top: number): EntityDef {
   return { ...entity, y: entity.y + top };
 }
 
-export function buildWorld(stage: StageDef): World {
-  const height = stage.sections.reduce((sum, section) => sum + section.height, 0);
+export function buildWorld(tower: TowerDef): World;
+/** Compatibility overload until gameplay is migrated to TowerDef. */
+export function buildWorld(stage: StageDef): World;
+export function buildWorld(input: TowerDef | StageDef): World {
+  const tower = 'stages' in input ? input : { stages: [input] };
+  const flattened = tower.stages.flatMap((stage) => (
+    stage.sections.map((section) => ({ stage, section }))
+  ));
+  const height = flattened.reduce((sum, { section }) => sum + section.height, 0);
   let accumulated = 0;
-  const sections: WorldSection[] = stage.sections.map((section) => {
+  const sections: WorldSection[] = flattened.map(({ stage, section }, globalIndex) => {
     const top = height - accumulated - section.height;
     accumulated += section.height;
     return {
+      globalIndex,
+      stageId: stage.id,
+      stageName: stage.name,
+      localSection: section.id,
+      theme: stage.theme,
       id: section.id,
       top,
       bottom: top + section.height,
@@ -21,7 +33,21 @@ export function buildWorld(stage: StageDef): World {
       entities: section.entities.map((entity) => translateEntity(entity, top)),
     };
   });
-  return { width: VIEW_W, height, stage, sections, solids: sections.flatMap((section) => section.solids) };
+  return {
+    width: VIEW_W,
+    height,
+    tower,
+    stage: tower.stages[0],
+    sections,
+    solids: sections.flatMap((section) => section.solids),
+  };
+}
+
+export function stageAtSection(world: World, globalIndex: number): StageDef {
+  const section = world.sections.find((candidate) => candidate.globalIndex === globalIndex);
+  const stage = section && world.tower.stages.find((candidate) => candidate.id === section.stageId);
+  if (!stage) throw new RangeError(`no stage at global section ${globalIndex}`);
+  return stage;
 }
 
 export function validateStage(stage: StageDef): string[] {
