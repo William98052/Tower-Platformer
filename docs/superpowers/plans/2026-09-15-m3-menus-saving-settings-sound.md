@@ -257,7 +257,7 @@ Commit: `feat: snapshot and restore tower runs`
 - Consumes `SaveStore`, `Game`, `RunSave`, `Mode`, and `Settings`.
 - Key methods: `openModeSelect()`, `newRun(mode)`, `continueRun(mode)`, `pause(reason)`, `resume()`, `restart()`, `quitToTitle()`, `openSettings()`, `closeSettings()`, `afterStep(result)`, and `advanceRealTime(dt)`.
 
-- [ ] **Step 1: Write failing screen-transition tests**
+- [x] **Step 1: Write failing screen-transition tests**
 
 ```ts
 const app = makeController();
@@ -272,17 +272,17 @@ app.closeSettings();
 expect(app.screen).toBe('paused');
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/app/controller.test.ts`
 
 Expected: FAIL because the controller does not exist.
 
-- [ ] **Step 3: Implement state transitions and confirmations as intents**
+- [x] **Step 3: Implement state transitions and confirmations as intents**
 
 The controller exposes `pendingConfirmation: null | { kind: 'newRun' | 'restart'; mode: Mode }` plus `confirm()` and `cancelConfirmation()`. This keeps confirm UI out of controller logic. Settings remember whether they opened from Title or Pause.
 
-- [ ] **Step 4: Write failing save-policy tests**
+- [x] **Step 4: Write failing save-policy tests**
 
 Test that:
 
@@ -293,19 +293,19 @@ Test that:
 - `continueAvailable(mode)` reflects validated snapshots;
 - invalid Continue restoration clears only that run and returns to Mode Select with a notice.
 
-- [ ] **Step 5: Implement save policy**
+- [x] **Step 5: Implement save policy**
 
 `advanceRealTime(dt)` accumulates only while playing a Hard run and performs one snapshot write whenever the accumulator reaches five seconds, retaining fractional remainder. `afterStep` compares checkpoint section and completed prompts against last persisted values before writing.
 
-- [ ] **Step 6: Write failing auto-pause and timer-freeze tests**
+- [x] **Step 6: Write failing auto-pause and timer-freeze tests**
 
 Verify blur/hidden pause only from Playing, repeated pause is idempotent, and `controller.step(input, cameraY)` returns no game step while not Playing.
 
-- [ ] **Step 7: Implement gated stepping and auto-pause**
+- [x] **Step 7: Implement gated stepping and auto-pause**
 
 Expose `step(input, cameraY)` as the only caller of `Game.step`. It returns `null` in menus, ensuring physics and run elapsed time freeze.
 
-- [ ] **Step 8: Verify and commit**
+- [x] **Step 8: Verify and commit**
 
 Run: `npx vitest run tests/app/controller.test.ts tests/core/save.test.ts tests/game/game-save.test.ts`
 
