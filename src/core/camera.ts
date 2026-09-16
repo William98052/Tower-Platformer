@@ -27,6 +27,7 @@ export class Camera {
   private shakeTime = 0;
   private shakeDuration = 0;
   private shakeMagnitude = 0;
+  private shakeEnabled = true;
   /** Fall lead, eased separately so it ramps in and out smoothly instead of snapping. */
   private leadY = 0;
 
@@ -65,10 +66,19 @@ export class Camera {
   }
 
   shake(magnitude: number, duration: number): void {
+    if (!this.shakeEnabled) return;
     if (magnitude < this.currentMagnitude()) return;
     this.shakeMagnitude = magnitude;
     this.shakeDuration = duration;
     this.shakeTime = duration;
+  }
+
+  setShakeEnabled(enabled: boolean): void {
+    this.shakeEnabled = enabled;
+    if (enabled) return;
+    this.shakeTime = 0;
+    this.offsetX = 0;
+    this.offsetY = 0;
   }
 
   updateShake(dt: number, random: () => number = Math.random): void {

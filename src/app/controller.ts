@@ -1,5 +1,6 @@
 import type { SaveStore } from '../core/save';
 import type { InputFrame } from '../core/input';
+import type { Settings } from '../core/settings';
 import { Game, type GameStepResult } from '../game/game';
 import type { Mode } from '../modes/run-state';
 import { STAGE_01_MOSS } from '../stages/stage01-moss';
@@ -33,6 +34,19 @@ export class AppController {
 
   openModeSelect(): void {
     if (this.screen === 'title') this.screen = 'modeSelect';
+  }
+
+  backToTitle(): void {
+    if (this.screen === 'modeSelect') this.screen = 'title';
+  }
+
+  get settings(): Settings {
+    return this.store.load().settings;
+  }
+
+  updateSettings(settings: Settings): void {
+    this.store.update((save) => { save.settings = settings; });
+    if (this.store.notice) this.notice = { message: this.store.notice };
   }
 
   newRun(mode: Mode): boolean {

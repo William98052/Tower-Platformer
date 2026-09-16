@@ -1,5 +1,14 @@
 import { MAX_FALL } from '../core/constants';
 
+export function effectiveBurstCount(count: number, reducedEffects: boolean): number {
+  if (!reducedEffects || count <= 0) return count;
+  return Math.max(1, Math.floor(count / 2));
+}
+
+export function effectiveParticleLimit(reducedEffects: boolean): number {
+  return reducedEffects ? 200 : 400;
+}
+
 export interface Particle {
   x: number;
   y: number;

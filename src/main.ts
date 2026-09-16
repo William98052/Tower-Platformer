@@ -1,22 +1,27 @@
+import { AppController } from './app/controller';
 import { Camera } from './core/camera';
 import { MAX_FRAME_DT, STEP, VIEW_H, VIEW_W } from './core/constants';
 import { type InputFrame, InputTracker, readPad, withoutPresses } from './core/input';
 import { FixedStep } from './core/loop';
+import { SaveStore, type StorageLike } from './core/save';
+import { DEFAULT_SETTINGS, effectsPolicy, replaceBinding, type Settings } from './core/settings';
 import { DebugOverlay } from './debug/overlay';
 import { Game } from './game/game';
 import type { StepEvents } from './physics/player';
-import { Afterimages, Particles, Squash, squashScale } from './render/effects';
+import { Afterimages, effectiveBurstCount, effectiveParticleLimit, Particles, Squash, squashScale } from './render/effects';
 import { drawAfterimages, drawParticles } from './render/effects-draw';
 import { drawCheckpoints, drawEntities } from './render/entity-draw';
 import { drawPlayer } from './render/player-draw';
 import { drawBackground, drawSolids } from './render/room-draw';
 import { drawHud, drawPrompt, drawStageBanner } from './ui/overlay-draw';
+import { MenuView, type MenuAction } from './ui/menu';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+const menuRoot = document.getElementById('menus') as HTMLElement;
+const noticeRoot = document.getElementById('notice') as HTMLElement;
 
 let blurScale = 1;
-
 function resize(): void {
   const dpr = window.devicePixelRatio || 1;
   const scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
@@ -30,47 +35,125 @@ function resize(): void {
 resize();
 window.addEventListener('resize', resize);
 
-const game = new Game('normal');
-const player = game.player;
-const camera = new Camera(VIEW_W, VIEW_H, game.world.width, game.world.height);
-const loop = new FixedStep(STEP, MAX_FRAME_DT);
-const input = new InputTracker();
+let browserStorage: StorageLike | null = null;
+try { browserStorage = window.localStorage; } catch { browserStorage = null; }
+const saves = new SaveStore(browserStorage);
+const app = new AppController(saves);
+const presentationGame = new Game('normal');
+let settings: Settings = app.settings ?? DEFAULT_SETTINGS;
+const input = new InputTracker(settings.bindings);
 const debug = new DebugOverlay();
-const particles = new Particles();
+let loop = new FixedStep(STEP, MAX_FRAME_DT);
+const camera = new Camera(VIEW_W, VIEW_H, presentationGame.world.width, presentationGame.world.height);
+let particles = new Particles(effectiveParticleLimit(settings.reducedEffects));
 const squash = new Squash();
 const afterimages = new Afterimages();
 
-let prevX = player.x;
-let prevY = player.y;
+let prevX = presentationGame.player.x;
+let prevY = presentationGame.player.y;
 let lastMs = 0;
 let stepsThisFrame = 0;
 let stepCount = 0;
+let presentationTime = 0;
 
 const DUST = '#cfe3a8';
 const SPARK = '#ffe6b0';
 
-function snapToPlayer(): void {
+const menus = new MenuView(menuRoot, noticeRoot, handleMenuAction);
+applySettings(settings);
+refreshMenu();
+if (app.notice) menus.showNotice(app.notice.message);
+
+function activeGame(): Game {
+  return app.game ?? presentationGame;
+}
+
+function applySettings(next: Settings): void {
+  settings = next;
+  input.setBindings(settings.bindings);
+  camera.setShakeEnabled(effectsPolicy(settings).shakeEnabled);
+  particles = new Particles(effectiveParticleLimit(settings.reducedEffects));
+}
+
+function updateSettings(next: Settings): void {
+  app.updateSettings(next);
+  applySettings(next);
+  refreshMenu();
+}
+
+function refreshMenu(): void {
+  menus.render({
+    screen: app.screen,
+    settings,
+    canContinueNormal: app.continueAvailable('normal'),
+    canContinueHard: app.continueAvailable('hard'),
+    pendingConfirmation: app.pendingConfirmation,
+  });
+  if (app.notice) menus.showNotice(app.notice.message);
+}
+
+function handleMenuAction(action: MenuAction): void {
+  if (action.type === 'play') app.openModeSelect();
+  if (action.type === 'openSettings') app.openSettings();
+  if (action.type === 'back') app.screen === 'settings' ? app.closeSettings() : app.backToTitle();
+  if (action.type === 'newRun') app.newRun(action.mode);
+  if (action.type === 'continueRun') app.continueRun(action.mode);
+  if (action.type === 'resume') app.resume();
+  if (action.type === 'restart') app.restart();
+  if (action.type === 'quit') app.quitToTitle();
+  if (action.type === 'confirm') app.confirm();
+  if (action.type === 'cancel') app.cancelConfirmation();
+  if (action.type === 'resetSettings') updateSettings(DEFAULT_SETTINGS);
+  if (action.type === 'setVolume') updateSettings({ ...settings, [action.name]: action.value });
+  if (action.type === 'setToggle') updateSettings({ ...settings, [action.name]: action.value });
+  if (action.type === 'beginBinding') {
+    menus.beginBindingCapture(action.action, action.slot);
+    return;
+  }
+  if (action.type === 'replaceBinding') updateSettings(replaceBinding(settings, action.action, action.slot, action.code));
+  resetFrameState();
+  refreshMenu();
+}
+
+function resetFrameState(): void {
+  input.releaseAll();
+  loop = new FixedStep(STEP, MAX_FRAME_DT);
+  lastMs = 0;
+  const player = activeGame().player;
   prevX = player.x;
   prevY = player.y;
-  camera.snapTo(player.x + player.w / 2, player.y + player.h / 2);
+  if (app.game) camera.snapTo(player.x + player.w / 2, player.y + player.h / 2);
 }
 
 function respawn(): void {
-  game.respawn();
-  snapToPlayer();
+  if (!app.game) return;
+  app.game.respawn();
+  resetFrameState();
 }
 
 function runDebugCommands(): void {
+  const game = app.game;
+  if (!game) return;
   for (let command = debug.takeCommand(); command !== null; command = debug.takeCommand()) {
     if (command.type === 'toggleNoclip') game.toggleNoclip();
     if (command.type === 'toggleMode') game.toggleMode();
     if (command.type === 'warp') game.warp(game.currentSection + command.delta);
-    snapToPlayer();
+    resetFrameState();
   }
 }
 
 window.addEventListener('keydown', (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.code === 'Escape' && !event.repeat) {
+    if (app.screen === 'playing') app.pause('escape');
+    else if (app.screen === 'paused') app.resume();
+    else if (app.screen === 'settings') app.closeSettings();
+    else if (app.screen === 'modeSelect') app.backToTitle();
+    resetFrameState();
+    refreshMenu();
+    return;
+  }
+  if (app.screen !== 'playing') return;
   if (!event.repeat && debug.handleKey(event.code)) {
     runDebugCommands();
     return;
@@ -86,36 +169,47 @@ window.addEventListener('keyup', (event) => {
   input.keyUp(event.code);
   if (event.code.startsWith('Meta')) input.releaseAll();
 });
-window.addEventListener('blur', () => input.releaseAll());
+window.addEventListener('blur', autoPause);
 document.addEventListener('visibilitychange', () => {
-  lastMs = 0;
-  input.releaseAll();
+  if (document.hidden) autoPause();
 });
 
+function autoPause(): void {
+  input.releaseAll();
+  app.pause('visibility');
+  resetFrameState();
+  refreshMenu();
+}
+
+function count(value: number): number {
+  return effectiveBurstCount(value, settings.reducedEffects);
+}
+
 function onEvents(events: StepEvents): void {
+  const player = activeGame().player;
   const footX = player.x + player.w / 2;
   const footY = player.y + player.h;
   if (events.jumped) {
     squash.set(0.75, 1.3);
-    particles.burst(footX, footY, { count: 8, speed: 120, color: DUST, size: 3, life: 0.35, spread: Math.PI });
+    particles.burst(footX, footY, { count: count(8), speed: 120, color: DUST, size: 3, life: 0.35, spread: Math.PI });
   }
   if (events.wallJumped) {
     squash.set(0.8, 1.25);
     const wallX = player.facing === 1 ? player.x : player.x + player.w;
     const away = player.facing === 1 ? 0 : Math.PI;
     particles.burst(wallX, player.y + player.h / 2, {
-      count: 8, speed: 140, color: DUST, size: 3, life: 0.35, angle: away, spread: Math.PI * 0.8,
+      count: count(8), speed: 140, color: DUST, size: 3, life: 0.35, angle: away, spread: Math.PI * 0.8,
     });
   }
   if (events.dashed) {
     camera.shake(4, 0.12);
-    particles.burst(footX, player.y + player.h / 2, { count: 12, speed: 220, color: SPARK, size: 2.5, life: 0.3 });
+    particles.burst(footX, player.y + player.h / 2, { count: count(12), speed: 220, color: SPARK, size: 2.5, life: 0.3 });
   }
   if (events.landed > 250) {
     const scale = squashScale(events.landed);
     squash.set(scale.sx, scale.sy);
     particles.burst(footX, footY, {
-      count: Math.round(events.landed / 80), speed: events.landed * 0.25, color: DUST,
+      count: count(Math.round(events.landed / 80)), speed: events.landed * 0.25, color: DUST,
       size: 3, life: 0.4, spread: Math.PI * 0.9,
     });
     if (events.landed > 1000) camera.shake(3, 0.1);
@@ -123,57 +217,72 @@ function onEvents(events: StepEvents): void {
 }
 
 function update(frameDt: number): void {
-  const dt = frameDt * debug.timeScale;
-  stepsThisFrame = loop.advance(dt);
-  if (stepsThisFrame > 0) {
-    const pad = readPad(navigator.getGamepads?.()?.find((item) => item !== null) ?? null);
-    const sampled: InputFrame = input.sample(pad);
-    for (let i = 0; i < stepsThisFrame; i++) {
-      prevX = player.x;
-      prevY = player.y;
-      const facingBefore = player.facing;
-      const events = game.step(i === 0 ? sampled : withoutPresses(sampled), camera.y);
-      onEvents(events);
-      if (events.respawned) snapToPlayer();
-      if (player.onGround && player.facing !== facingBefore && Math.abs(player.vx) > 150) {
-        particles.burst(player.x + player.w / 2, player.y + player.h, {
-          count: 5, speed: 90, color: DUST, size: 2.5, life: 0.3,
-          angle: player.facing === 1 ? Math.PI : 0, spread: 1.2,
-        });
+  presentationTime += frameDt;
+  stepsThisFrame = 0;
+  const game = app.game;
+  if (app.screen === 'playing' && game) {
+    app.advanceRealTime(frameDt);
+    stepsThisFrame = loop.advance(frameDt * debug.timeScale);
+    if (stepsThisFrame > 0) {
+      const pad = readPad(navigator.getGamepads?.()?.find((item) => item !== null) ?? null);
+      const sampled: InputFrame = input.sample(pad);
+      for (let i = 0; i < stepsThisFrame; i++) {
+        prevX = game.player.x;
+        prevY = game.player.y;
+        const facingBefore = game.player.facing;
+        const events = app.step(i === 0 ? sampled : withoutPresses(sampled), camera.y);
+        if (!events) break;
+        onEvents(events);
+        if (events.respawned) resetFrameState();
+        if (game.player.onGround && game.player.facing !== facingBefore && Math.abs(game.player.vx) > 150) {
+          particles.burst(game.player.x + game.player.w / 2, game.player.y + game.player.h, {
+            count: count(5), speed: 90, color: DUST, size: 2.5, life: 0.3,
+            angle: game.player.facing === 1 ? Math.PI : 0, spread: 1.2,
+          });
+        }
+        stepCount++;
+        if (game.player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(prevX, prevY);
       }
-      stepCount++;
-      if (player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(prevX, prevY);
     }
+    const rx = prevX + (game.player.x - prevX) * loop.alpha;
+    const ry = prevY + (game.player.y - prevY) * loop.alpha;
+    camera.follow(rx + game.player.w / 2, ry + game.player.h / 2, game.player.vy, frameDt);
+  } else if (!game) {
+    const travel = Math.max(1, presentationGame.world.height - VIEW_H);
+    camera.y = travel - (presentationTime * 18 % travel);
   }
 
-  const rx = prevX + (player.x - prevX) * loop.alpha;
-  const ry = prevY + (player.y - prevY) * loop.alpha;
-  camera.follow(rx + player.w / 2, ry + player.h / 2, player.vy, dt);
-  camera.updateShake(dt);
-  particles.update(dt, 400);
-  squash.update(dt);
-  afterimages.update(dt);
-  render(rx, ry);
+  camera.updateShake(frameDt);
+  particles.update(frameDt, 400);
+  squash.update(frameDt);
+  afterimages.update(frameDt);
+  render();
 }
 
-function render(rx: number, ry: number): void {
+function render(): void {
+  const game = activeGame();
+  const player = game.player;
+  const rx = prevX + (player.x - prevX) * loop.alpha;
+  const ry = prevY + (player.y - prevY) * loop.alpha;
   const camX = camera.x + camera.offsetX;
   const camY = camera.y + camera.offsetY;
-  drawBackground(ctx, camX, camY, game.time);
-  drawSolids(ctx, game.world.solids, camX, camY, blurScale);
-  drawCheckpoints(ctx, game.world.sections, game.run.checkpoint, game.run.mode, camX, camY, blurScale);
+  const glowScale = settings.reducedEffects ? 0 : blurScale;
+  drawBackground(ctx, camX, camY, app.game?.time ?? presentationTime);
+  drawSolids(ctx, game.world.solids, camX, camY, glowScale);
+  if (!app.game) return;
+  drawCheckpoints(ctx, game.world.sections, game.run.checkpoint, game.run.mode, camX, camY, glowScale);
   drawEntities(ctx, game.activeEntities(camera.y), camX, camY, game.time, loop.alpha);
   drawAfterimages(ctx, afterimages, player.w, player.h, camX, camY);
-  drawPlayer(ctx, { ...player, x: rx, y: ry }, squash, camX, camY, game.time, blurScale);
+  drawPlayer(ctx, { ...player, x: rx, y: ry }, squash, camX, camY, game.time, glowScale);
   drawParticles(ctx, particles, camX, camY);
   drawHud(ctx, game.run, ry, game.world.height, game.world.stage.name);
   drawPrompt(ctx, game.prompts);
   drawStageBanner(ctx, game.banner);
-  debug.draw(ctx, { ...player, x: rx, y: ry }, game.world.solids, camX, camY, stepsThisFrame, {
-    mode: game.run.mode,
-    section: game.currentSection,
-    noclip: game.noclip,
-  });
+  if (app.screen === 'playing') {
+    debug.draw(ctx, { ...player, x: rx, y: ry }, game.world.solids, camX, camY, stepsThisFrame, {
+      mode: game.run.mode, section: game.currentSection, noclip: game.noclip,
+    });
+  }
 }
 
 function frame(nowMs: number): void {
@@ -184,5 +293,4 @@ function frame(nowMs: number): void {
   requestAnimationFrame(frame);
 }
 
-snapToPlayer();
 requestAnimationFrame(frame);

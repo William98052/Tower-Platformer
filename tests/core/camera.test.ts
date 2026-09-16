@@ -93,6 +93,17 @@ describe('Camera', () => {
     expect(cam.offsetX).toBeCloseTo(10, 6);
   });
 
+  it('suppresses active and future shake when the preference is disabled', () => {
+    const cam = make();
+    cam.shake(10, 1);
+    cam.setShakeEnabled(false);
+    cam.updateShake(0, () => 1);
+    expect([cam.offsetX, cam.offsetY]).toEqual([0, 0]);
+    cam.shake(10, 1);
+    cam.updateShake(0, () => 1);
+    expect([cam.offsetX, cam.offsetY]).toEqual([0, 0]);
+  });
+
   it('ignores zero-duration and negative shakes without producing NaN', () => {
     const cam = make();
     cam.shake(10, 0);

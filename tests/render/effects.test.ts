@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_FALL } from '../../src/core/constants';
-import { Afterimages, Particles, Squash, squashScale } from '../../src/render/effects';
+import { Afterimages, effectiveBurstCount, effectiveParticleLimit, Particles, Squash, squashScale } from '../../src/render/effects';
 
 const DUST = { count: 6, speed: 100, color: '#fff', size: 3, life: 0.3 };
 
 describe('Particles', () => {
+  it('halves burst counts and capacity in reduced-effects mode', () => {
+    expect(effectiveBurstCount(9, true)).toBe(4);
+    expect(effectiveBurstCount(1, true)).toBe(1);
+    expect(effectiveBurstCount(9, false)).toBe(9);
+    expect(effectiveParticleLimit(true)).toBe(200);
+    expect(effectiveParticleLimit(false)).toBe(400);
+  });
+
   it('spawns a burst at the origin', () => {
     const ps = new Particles();
     ps.burst(10, 20, DUST);

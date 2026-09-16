@@ -381,7 +381,7 @@ Commit: `feat: add title pause and settings menus`
 - Consumes `AppController`, `MenuView`, and `Settings`.
 - Produces `Camera.setShakeEnabled(enabled)` and reduced-effect burst helpers.
 
-- [ ] **Step 1: Write failing presentation-policy tests**
+- [x] **Step 1: Write failing presentation-policy tests**
 
 ```ts
 const camera = new Camera(960, 540, 960, 4900);
@@ -394,29 +394,29 @@ expect(effectiveBurstCount(9, true)).toBe(4);
 expect(effectiveParticleLimit(true)).toBe(200);
 ```
 
-- [ ] **Step 2: Verify RED, then implement effect policy**
+- [x] **Step 2: Verify RED, then implement effect policy**
 
 Run: `npx vitest run tests/core/camera.test.ts tests/render/effects.test.ts`
 
 Expected before implementation: FAIL for missing APIs. After implementation: PASS.
 
-- [ ] **Step 3: Replace direct `Game` ownership in `main.ts`**
+- [x] **Step 3: Replace direct `Game` ownership in `main.ts`**
 
 Create `SaveStore(window.localStorage)`, `AppController`, `MenuView`, and an `InputTracker` from saved bindings. Route menu actions to controller methods and settings updates. Rebind `player`, camera bounds, and interpolation state whenever the active game changes.
 
-- [ ] **Step 4: Gate the fixed-step loop and input**
+- [x] **Step 4: Gate the fixed-step loop and input**
 
 Sample gameplay input and call controller steps only when `screen === 'playing'`. Reset `lastMs`, the fixed-step accumulator, interpolation coordinates, and held inputs whenever entering or leaving Playing. `Escape` is reserved for pause/back/cancel capture before debug or gameplay handling.
 
-- [ ] **Step 5: Add presentation camera rendering**
+- [x] **Step 5: Add presentation camera rendering**
 
 When no game is active or a title/menu is open, render Moss Ruins with a deterministic slow vertical camera drift and ambient particles, but do not call `Game.step`. Hide gameplay HUD, player, prompts, and debug overlay outside Playing/Pause as appropriate.
 
-- [ ] **Step 6: Wire browser auto-pause**
+- [x] **Step 6: Wire browser auto-pause**
 
 Blur and hidden-tab handlers release input and call `app.pause('visibility')`. They preserve Title, Mode Select, Settings, and existing Pause. Resume always snaps the camera and clears frame time.
 
-- [ ] **Step 7: Verify and commit**
+- [x] **Step 7: Verify and commit**
 
 Run: `npm test && npm run typecheck && npm run build`
 
