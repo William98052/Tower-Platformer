@@ -56,7 +56,8 @@ describe('STAGE_01_MOSS', () => {
         const verticalGap = lowerY - upperY;
         if (verticalGap > 180) {
           const bridgingVines = section.solids.filter((solid) => solid.surface === 'vine' && solid.y <= upperY && solid.y + solid.h >= lowerY - 120);
-          expect(bridgingVines.length, `section ${section.id}`).toBeGreaterThanOrEqual(2);
+          const bridgingMushroom = section.entities.some((entity) => entity.type === 'mushroom' && entity.y + entity.h === lowerY);
+          expect(bridgingVines.length >= 2 || bridgingMushroom, `section ${section.id}`).toBe(true);
         }
       }
       for (const solid of section.solids.filter((item) => item.surface === 'vine')) {
@@ -93,7 +94,13 @@ describe('STAGE_01_MOSS', () => {
         const verticalGap = lower.y - upper.y;
         if (verticalGap > 145) {
           const bridgingVines = vines.filter((vine) => vine.y <= upper.y && vine.y + vine.h >= lower.y - 120);
-          expect(bridgingVines.length, `section ${section.id} shaft link ${i}`).toBeGreaterThanOrEqual(2);
+          const bridgingMushroom = section.entities.some((entity) => (
+            entity.type === 'mushroom'
+            && entity.y + entity.h === lower.y
+            && entity.x < lower.x + lower.w
+            && entity.x + entity.w > lower.x
+          ));
+          expect(bridgingVines.length >= 2 || bridgingMushroom, `section ${section.id} mechanic link ${i}`).toBe(true);
         } else {
           expect(verticalGap, `section ${section.id} vertical link ${i}`).toBeLessThanOrEqual(145);
         }
@@ -140,6 +147,16 @@ describe('STAGE_01_MOSS', () => {
         expect(route[j - 1].y - route[j].y, `section ${i} route spacing ${j}`).toBeGreaterThanOrEqual(90);
       }
     }
+  });
+
+  it('uses the right-hand landing as the direct approach to the first checkpoint', () => {
+    const route = STAGE_01_MOSS.sections[0].solids
+      .filter((solid) => solid.role === 'main' && solid.h <= 24)
+      .sort((a, b) => b.y - a.y);
+
+    expect(route).toHaveLength(5);
+    expect(route.at(-1)).toMatchObject({ x: 630, y: 80, w: 210 });
+    expect(STAGE_01_MOSS.sections[0].entities).toContainEqual(expect.objectContaining({ type: 'mushroom', launch: 980 }));
   });
 
   it('joins vine walls and platforms edge-to-edge without shoving rectangles through each other', () => {

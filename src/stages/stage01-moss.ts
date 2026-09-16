@@ -49,11 +49,10 @@ export const STAGE_01_MOSS: StageDef = {
       platform(120, 535, 220),
       platform(300, 410, 220),
       platform(500, 285, 210),
-      platform(630, 170, 210),
-      platform(500, 70, 210),
+      platform(630, 80, 210),
     ], [
       { type: 'prompt', x: 45, y: 500, w: 260, h: 150, prompt: 'jump' },
-      { type: 'mushroom', x: 565, y: 261, w: 90, h: 24, launch: 920 },
+      { type: 'mushroom', x: 565, y: 261, w: 90, h: 24, launch: 980 },
     ]),
 
     // 2. The route visibly enters one framed wall-jump shaft and exits to the right.
