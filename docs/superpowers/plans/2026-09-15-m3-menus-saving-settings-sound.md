@@ -494,7 +494,7 @@ Commit: `feat: add synthesized game audio`
 - Consumes all earlier modules.
 - Produces one integrated browser flow with no new public subsystem.
 
-- [ ] **Step 1: Write failing integration tests for persistent events**
+- [x] **Step 1: Write failing integration tests for persistent events**
 
 Test controller behavior for a real `Game` and in-memory store:
 
@@ -504,25 +504,25 @@ Test controller behavior for a real `Game` and in-memory store:
 - settings updates immediately change saved settings and controller model;
 - best height only improves, never regresses.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/app/controller.test.ts tests/game/game-save.test.ts`
 
 Expected: FAIL on unconnected persistence events.
 
-- [ ] **Step 3: Connect gameplay events to controller persistence**
+- [x] **Step 3: Connect gameplay events to controller persistence**
 
 Extend `GameStepResult` with `promptCompleted: PromptId | null`. Compare the run's `bestY` and checkpoint after each step. Keep write deduplication inside the controller so ordinary frames do not touch storage.
 
-- [ ] **Step 4: Connect audio and live preferences in `main.ts`**
+- [x] **Step 4: Connect audio and live preferences in `main.ts`**
 
 Call `audio.unlock()` from the first menu/game user gesture. Map `StepEvents`, checkpoint activation, and menu actions to audio events. Set ambience to Moss while Playing, duck it while Paused, and turn it off on Title/Mode Select. Apply volume, shake, bindings, and reduced effects immediately when settings change.
 
-- [ ] **Step 5: Add the one-time persistence notice**
+- [x] **Step 5: Add the one-time persistence notice**
 
 Render `SaveStore.notice` through the ARIA status notice once per session. Do not repeatedly surface the same storage or audio failure.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npm test && npm run typecheck && npm run build && git diff --check`
 

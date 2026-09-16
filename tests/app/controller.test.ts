@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AppController } from '../../src/app/controller';
 import { SaveStore, type StorageLike } from '../../src/core/save';
 import { EMPTY_INPUT } from '../../src/core/input';
+import { DEFAULT_SETTINGS } from '../../src/core/settings';
 import type { HardRunSave } from '../../src/game/run-snapshot';
 
 function memoryStorage(): StorageLike {
@@ -73,7 +74,7 @@ describe('AppController persistence policy', () => {
     app.newRun('normal');
     const checkpoint = app.game!.world.sections[1].checkpoint;
     app.game!.run.checkpoint = { ...checkpoint, section: 1 };
-    app.afterStep({ jumped: false, wallJumped: false, dashed: false, landed: 0, respawned: false, checkpointActivated: true });
+    app.afterStep({ jumped: false, wallJumped: false, dashed: false, landed: 0, respawned: false, checkpointActivated: true, promptCompleted: null });
     expect(store.load().runs.normal).toMatchObject({ kind: 'normal', section: 1 });
   });
 
@@ -105,9 +106,16 @@ describe('AppController persistence policy', () => {
     app.newRun('normal');
     app.game!.prompts.completed.add('dash');
     app.game!.run.bestY = app.game!.world.height - 900;
-    app.afterStep({ jumped: false, wallJumped: false, dashed: true, landed: 0, respawned: false, checkpointActivated: false });
+    app.afterStep({ jumped: false, wallJumped: false, dashed: true, landed: 0, respawned: false, checkpointActivated: false, promptCompleted: 'dash' });
     expect(store.load().completedPrompts).toEqual(['dash']);
     expect(store.load().records.normal.bestHeight).toBe(900);
+  });
+
+  it('persists settings updates immediately', () => {
+    const { app, store } = makeController();
+    app.updateSettings({ ...DEFAULT_SETTINGS, masterVolume: 0.25, screenShake: false });
+    expect(app.settings).toMatchObject({ masterVolume: 0.25, screenShake: false });
+    expect(store.load().settings).toMatchObject({ masterVolume: 0.25, screenShake: false });
   });
 
   it('clears only a geometrically invalid Continue snapshot', () => {

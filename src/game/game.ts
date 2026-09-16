@@ -17,6 +17,7 @@ import { validateRunSave } from './run-snapshot';
 export interface GameStepResult extends StepEvents {
   respawned: boolean;
   checkpointActivated: boolean;
+  promptCompleted: PromptId | null;
 }
 
 const NO_EVENTS: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
@@ -82,13 +83,13 @@ export class Game {
         }
       }
     }
-    completePromptsFromEvents(this.prompts, events);
+    const promptCompleted = completePromptsFromEvents(this.prompts, events);
 
     if (shouldRespawnForFall(this.run, this.player.y)) {
       this.respawn();
-      return { ...events, respawned: true, checkpointActivated };
+      return { ...events, respawned: true, checkpointActivated, promptCompleted };
     }
-    return { ...events, respawned: false, checkpointActivated };
+    return { ...events, respawned: false, checkpointActivated, promptCompleted };
   }
 
   hitHazard(hazardCenterX: number): boolean {

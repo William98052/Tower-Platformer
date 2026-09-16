@@ -64,8 +64,9 @@ describe('Game integration', () => {
     game.player.x = trigger.x + 10;
     game.player.y = game.world.sections[0].solids[2].y - game.player.h;
     game.player.onGround = true;
-    game.step(input({ jump: true, jumpPressed: true }), game.world.sections[0].top);
+    const result = game.step(input({ jump: true, jumpPressed: true }), game.world.sections[0].top);
     expect(game.prompts.completed.has('jump')).toBe(true);
+    expect(result.promptCompleted).toBe('jump');
   });
 
   it('warps between sections, toggles mode, and supports noclip movement', () => {

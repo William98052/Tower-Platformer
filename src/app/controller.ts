@@ -133,7 +133,7 @@ export class AppController {
   afterStep(result: GameStepResult): void {
     if (!this.game || this.screen !== 'playing') return;
     const save = this.store.load();
-    const promptsChanged = this.game.completedPrompts().some((id) => !save.completedPrompts.includes(id));
+    const promptsChanged = result.promptCompleted !== null || this.game.completedPrompts().some((id) => !save.completedPrompts.includes(id));
     if ((result.checkpointActivated && this.game.run.mode === 'normal') || promptsChanged) this.saveCurrent();
   }
 

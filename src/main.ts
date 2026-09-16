@@ -1,4 +1,5 @@
 import { AppController } from './app/controller';
+import { AudioManager } from './audio/audio';
 import { Camera } from './core/camera';
 import { MAX_FRAME_DT, STEP, VIEW_H, VIEW_W } from './core/constants';
 import { type InputFrame, InputTracker, readPad, withoutPresses } from './core/input';
@@ -6,8 +7,7 @@ import { FixedStep } from './core/loop';
 import { SaveStore, type StorageLike } from './core/save';
 import { DEFAULT_SETTINGS, effectsPolicy, replaceBinding, type Settings } from './core/settings';
 import { DebugOverlay } from './debug/overlay';
-import { Game } from './game/game';
-import type { StepEvents } from './physics/player';
+import { Game, type GameStepResult } from './game/game';
 import { Afterimages, effectiveBurstCount, effectiveParticleLimit, Particles, Squash, squashScale } from './render/effects';
 import { drawAfterimages, drawParticles } from './render/effects-draw';
 import { drawCheckpoints, drawEntities } from './render/entity-draw';
@@ -39,6 +39,7 @@ let browserStorage: StorageLike | null = null;
 try { browserStorage = window.localStorage; } catch { browserStorage = null; }
 const saves = new SaveStore(browserStorage);
 const app = new AppController(saves);
+const audio = new AudioManager();
 const presentationGame = new Game('normal');
 let settings: Settings = app.settings ?? DEFAULT_SETTINGS;
 const input = new InputTracker(settings.bindings);
@@ -73,6 +74,7 @@ function applySettings(next: Settings): void {
   input.setBindings(settings.bindings);
   camera.setShakeEnabled(effectsPolicy(settings).shakeEnabled);
   particles = new Particles(effectiveParticleLimit(settings.reducedEffects));
+  audio.setVolumes(settings.masterVolume, settings.sfxVolume);
 }
 
 function updateSettings(next: Settings): void {
@@ -93,6 +95,7 @@ function refreshMenu(): void {
 }
 
 function handleMenuAction(action: MenuAction): void {
+  void audio.unlock().then((ready) => { if (ready) audio.play('uiConfirm'); });
   if (action.type === 'play') app.openModeSelect();
   if (action.type === 'openSettings') app.openSettings();
   if (action.type === 'back') app.screen === 'settings' ? app.closeSettings() : app.backToTitle();
@@ -112,7 +115,14 @@ function handleMenuAction(action: MenuAction): void {
   }
   if (action.type === 'replaceBinding') updateSettings(replaceBinding(settings, action.action, action.slot, action.code));
   resetFrameState();
+  syncAmbience();
   refreshMenu();
+}
+
+function syncAmbience(): void {
+  if (app.screen === 'playing') audio.setAmbience('moss');
+  else if (app.game && (app.screen === 'paused' || app.screen === 'settings')) audio.setAmbience('paused');
+  else audio.setAmbience('off');
 }
 
 function resetFrameState(): void {
@@ -151,6 +161,7 @@ window.addEventListener('keydown', (event) => {
     else if (app.screen === 'modeSelect') app.backToTitle();
     resetFrameState();
     refreshMenu();
+    syncAmbience();
     return;
   }
   if (app.screen !== 'playing') return;
@@ -178,6 +189,7 @@ function autoPause(): void {
   input.releaseAll();
   app.pause('visibility');
   resetFrameState();
+  syncAmbience();
   refreshMenu();
 }
 
@@ -185,15 +197,17 @@ function count(value: number): number {
   return effectiveBurstCount(value, settings.reducedEffects);
 }
 
-function onEvents(events: StepEvents): void {
+function onEvents(events: GameStepResult): void {
   const player = activeGame().player;
   const footX = player.x + player.w / 2;
   const footY = player.y + player.h;
   if (events.jumped) {
+    audio.play('jump');
     squash.set(0.75, 1.3);
     particles.burst(footX, footY, { count: count(8), speed: 120, color: DUST, size: 3, life: 0.35, spread: Math.PI });
   }
   if (events.wallJumped) {
+    audio.play('wallJump');
     squash.set(0.8, 1.25);
     const wallX = player.facing === 1 ? player.x : player.x + player.w;
     const away = player.facing === 1 ? 0 : Math.PI;
@@ -202,10 +216,12 @@ function onEvents(events: StepEvents): void {
     });
   }
   if (events.dashed) {
+    audio.play('dash');
     camera.shake(4, 0.12);
     particles.burst(footX, player.y + player.h / 2, { count: count(12), speed: 220, color: SPARK, size: 2.5, life: 0.3 });
   }
   if (events.landed > 250) {
+    audio.play('land', events.landed);
     const scale = squashScale(events.landed);
     squash.set(scale.sx, scale.sy);
     particles.burst(footX, footY, {
@@ -214,6 +230,7 @@ function onEvents(events: StepEvents): void {
     });
     if (events.landed > 1000) camera.shake(3, 0.1);
   }
+  if (events.checkpointActivated) audio.play('checkpoint');
 }
 
 function update(frameDt: number): void {
@@ -294,3 +311,4 @@ function frame(nowMs: number): void {
 }
 
 requestAnimationFrame(frame);
+window.addEventListener('pagehide', () => audio.dispose(), { once: true });
