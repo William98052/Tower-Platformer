@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { completePromptsFromEvents, createPromptState, promptCopy, showPrompt } from '../../src/ui/prompts';
 
 describe('move prompts', () => {
+  it('initializes already completed prompts without exposing the input collection', () => {
+    const completed = ['dash'] as const;
+    const state = createPromptState(completed);
+    expect(showPrompt(state, 'dash')).toBe(false);
+    state.completed.add('jump');
+    expect(completed).toEqual(['dash']);
+  });
+
   it('shows a prompt once and completes it from the matching movement event', () => {
     const state = createPromptState();
     expect(showPrompt(state, 'wallJump')).toBe(true);

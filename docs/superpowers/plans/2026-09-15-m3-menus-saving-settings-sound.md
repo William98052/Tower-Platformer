@@ -198,7 +198,7 @@ Commit: `feat: add resilient versioned saves`
 - Produces `Game.restore(stage: StageDef, snapshot: RunSave, completedPrompts: Iterable<PromptId>): Game | null`.
 - Produces `Game.completedPrompts(): PromptId[]` and constructor support for pre-completed prompts.
 
-- [ ] **Step 1: Write failing Normal and Hard snapshot tests**
+- [x] **Step 1: Write failing Normal and Hard snapshot tests**
 
 ```ts
 const normal = new Game('normal');
@@ -212,19 +212,19 @@ hard.player.x = 420; hard.player.y = 900; hard.player.vx = 50; hard.player.vy = 
 expect(hard.snapshot()).toMatchObject({ kind: 'hard', x: 420, y: 900, vx: 50, vy: -20 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `npx vitest run tests/game/game-save.test.ts`
 
 Expected: FAIL because snapshot methods are absent.
 
-- [ ] **Step 3: Implement snapshot creation and restoration**
+- [x] **Step 3: Implement snapshot creation and restoration**
 
 Normal restoration creates a new game and warps to the saved checkpoint section, then restores elapsed, falls, and best height. Hard restoration restores position, velocity, elapsed, falls, best height, and derives `currentSection` from the player position.
 
 Before accepting Hard coordinates, create the player's AABB and reject the snapshot if it is outside world bounds or overlaps any solid in the active section neighborhood. Reject a mismatched stage ID or invalid section.
 
-- [ ] **Step 4: Write failing prompt restoration tests**
+- [x] **Step 4: Write failing prompt restoration tests**
 
 ```ts
 const game = new Game('normal', STAGE_01_MOSS, ['jump']);
@@ -232,11 +232,11 @@ expect(game.completedPrompts()).toEqual(['jump']);
 expect(showPrompt(game.prompts, 'jump')).toBe(false);
 ```
 
-- [ ] **Step 5: Implement prompt initialization and stable export**
+- [x] **Step 5: Implement prompt initialization and stable export**
 
 Pass completed prompts into `createPromptState`. Export a sorted array in stage prompt order (`jump`, `wallJump`, `dash`) so save output is deterministic.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npx vitest run tests/game/game-save.test.ts tests/game/game.test.ts tests/ui/prompts.test.ts`
 

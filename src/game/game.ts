@@ -5,11 +5,14 @@ import type { Entity } from '../entities/entity';
 import { activateCheckpoint, createRunState, hitHazard, recordLanding, shouldRespawnForFall, stepRunTimers, trackHeight } from '../modes/rules';
 import type { Mode, RunState } from '../modes/run-state';
 import { createPlayer, type Player, type StepEvents, stepPlayer } from '../physics/player';
+import { overlaps } from '../physics/aabb';
 import { STAGE_01_MOSS } from '../stages/stage01-moss';
-import type { StageDef, World, WorldSection } from '../stages/types';
+import type { PromptId, StageDef, World, WorldSection } from '../stages/types';
 import { activeSections, buildWorld } from '../stages/world';
 import { StageBanner } from '../ui/banner';
 import { completePromptsFromEvents, createPromptState, showPrompt, type PromptState } from '../ui/prompts';
+import type { RunSave } from './run-snapshot';
+import { validateRunSave } from './run-snapshot';
 
 export interface GameStepResult extends StepEvents {
   respawned: boolean;
@@ -29,12 +32,12 @@ export class Game {
   time = 0;
   private readonly entitiesBySection: Entity[][];
 
-  constructor(mode: Mode = 'normal', stage: StageDef = STAGE_01_MOSS) {
+  constructor(mode: Mode = 'normal', stage: StageDef = STAGE_01_MOSS, completedPrompts: Iterable<PromptId> = []) {
     this.world = buildWorld(stage);
     const spawn = this.world.sections[0].checkpoint;
     this.player = createPlayer(spawn.x, spawn.y);
     this.run = createRunState(mode, spawn, 0);
-    this.prompts = createPromptState();
+    this.prompts = createPromptState(completedPrompts);
     this.entitiesBySection = this.world.sections.map((section) => createEntities(section.entities));
     this.banner.enter(stage.id, stage.name);
   }
@@ -121,6 +124,70 @@ export class Game {
     this.noclip = !this.noclip;
     this.player.vx = 0;
     this.player.vy = 0;
+  }
+
+  snapshot(): RunSave {
+    const common = {
+      stageId: this.world.stage.id,
+      elapsed: this.run.elapsed,
+      falls: this.run.falls,
+      bestY: this.run.bestY,
+    };
+    if (this.run.mode === 'normal') {
+      return { kind: 'normal', ...common, section: this.run.checkpoint.section };
+    }
+    return {
+      kind: 'hard',
+      ...common,
+      section: this.currentSection,
+      x: this.player.x,
+      y: this.player.y,
+      vx: this.player.vx,
+      vy: this.player.vy,
+    };
+  }
+
+  completedPrompts(): PromptId[] {
+    const order: readonly PromptId[] = ['jump', 'wallJump', 'dash'];
+    return order.filter((id) => this.prompts.completed.has(id));
+  }
+
+  static restore(stage: StageDef, snapshot: RunSave, completedPrompts: Iterable<PromptId>): Game | null {
+    const checked = validateRunSave(snapshot, snapshot.kind);
+    if (!checked || checked.stageId !== stage.id) return null;
+
+    const game = new Game(checked.kind, stage, completedPrompts);
+    if (checked.section >= game.world.sections.length) return null;
+
+    if (checked.kind === 'normal') {
+      const target = game.world.sections[checked.section];
+      game.run = createRunState('normal', target.checkpoint, checked.section);
+      game.run.elapsed = checked.elapsed;
+      game.run.falls = checked.falls;
+      game.run.bestY = checked.bestY;
+      game.run.peakSinceLanding = checked.bestY;
+      Object.assign(game.player, createPlayer(target.checkpoint.x, target.checkpoint.y));
+      game.currentSection = checked.section;
+      return game;
+    }
+
+    const candidate = { x: checked.x, y: checked.y, w: game.player.w, h: game.player.h };
+    if (candidate.x < 0 || candidate.y < 0
+      || candidate.x + candidate.w > game.world.width
+      || candidate.y + candidate.h > game.world.height
+      || game.world.solids.some((solid) => overlaps(candidate, solid))) {
+      return null;
+    }
+
+    Object.assign(game.player, candidate, { vx: checked.vx, vy: checked.vy, onGround: false });
+    const derivedSection = game.sectionAt(game.player.y + game.player.h / 2);
+    if (derivedSection !== checked.section) return null;
+    game.currentSection = derivedSection;
+    game.run.elapsed = checked.elapsed;
+    game.run.falls = checked.falls;
+    game.run.bestY = checked.bestY;
+    game.run.peakSinceLanding = checked.bestY;
+    return game;
   }
 
   activeSectionIds(cameraY: number): number[] {
