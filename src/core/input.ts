@@ -7,7 +7,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   up: ['ArrowUp', 'KeyW'],
   down: ['ArrowDown', 'KeyS'],
   jump: ['Space', 'KeyC'],
-  dash: ['ShiftLeft', 'ShiftRight', 'KeyX'],
+  dash: ['ShiftLeft', 'KeyX'],
 };
 
 export type Axis = -1 | 0 | 1;
@@ -74,7 +74,13 @@ export class InputTracker {
   private pressed = new Set<'jump' | 'dash'>();
   private prevPad: PadState = NO_PAD;
 
-  constructor(private readonly bindings: Bindings = DEFAULT_BINDINGS) {}
+  constructor(private bindings: Bindings = DEFAULT_BINDINGS) {}
+
+  setBindings(bindings: Bindings): void {
+    this.bindings = bindings;
+    this.releaseAll();
+    this.prevPad = NO_PAD;
+  }
 
   /** `repeat` is the DOM event's `repeat` flag: repeats keep a key held but never count as a new press. */
   keyDown(code: string, repeat = false): void {

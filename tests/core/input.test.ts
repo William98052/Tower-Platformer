@@ -109,6 +109,17 @@ describe('InputTracker keyboard', () => {
     t.keyDown('KeyZ');
     expect(t.sample().jumpPressed).toBe(true);
   });
+
+  it('releases held input when live bindings change', () => {
+    const t = new InputTracker();
+    t.keyDown('KeyA');
+    t.keyDown('Space');
+    t.setBindings({ ...DEFAULT_BINDINGS, left: ['KeyJ'], jump: ['KeyK'] });
+    expect(t.sample()).toMatchObject({ moveX: 0, jump: false, jumpPressed: false });
+    t.keyDown('KeyJ');
+    t.keyDown('KeyK');
+    expect(t.sample()).toMatchObject({ moveX: -1, jump: true, jumpPressed: true });
+  });
 });
 
 describe('readPad', () => {

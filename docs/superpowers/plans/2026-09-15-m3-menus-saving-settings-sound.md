@@ -48,7 +48,7 @@
 - Produces: `Settings`, `DEFAULT_SETTINGS`, `validateSettings(value): Settings`, `replaceBinding(settings, action, slot, code): Settings`, and `effectsPolicy(settings)`.
 - Modifies: `InputTracker.setBindings(bindings: Bindings): void` to release held input and use new bindings.
 
-- [ ] **Step 1: Write failing tests for defaults and validation**
+- [x] **Step 1: Write failing tests for defaults and validation**
 
 ```ts
 expect(DEFAULT_SETTINGS.masterVolume).toBe(0.8);
@@ -58,13 +58,13 @@ expect(validateSettings({ ...DEFAULT_SETTINGS, masterVolume: 4 }).masterVolume).
 expect(validateSettings({ ...DEFAULT_SETTINGS, reducedEffects: 'yes' })).toEqual(DEFAULT_SETTINGS);
 ```
 
-- [ ] **Step 2: Run the focused suite and verify RED**
+- [x] **Step 2: Run the focused suite and verify RED**
 
 Run: `npx vitest run tests/core/settings.test.ts`
 
 Expected: FAIL because `src/core/settings.ts` does not exist.
 
-- [ ] **Step 3: Implement the settings model**
+- [x] **Step 3: Implement the settings model**
 
 ```ts
 export interface Settings {
@@ -90,7 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 Validation clamps volumes to `[0, 1]`, accepts only booleans for toggles, requires all six actions with two non-empty codes, and returns a deep copy of defaults when the object is malformed.
 
-- [ ] **Step 4: Write failing tests for swaps and live rebinding**
+- [x] **Step 4: Write failing tests for swaps and live rebinding**
 
 ```ts
 const changed = replaceBinding(DEFAULT_SETTINGS, 'jump', 0, 'KeyA');
@@ -103,11 +103,11 @@ input.setBindings(changed.bindings);
 expect(input.sample().moveX).toBe(0);
 ```
 
-- [ ] **Step 5: Implement conflict swapping and `InputTracker.setBindings`**
+- [x] **Step 5: Implement conflict swapping and `InputTracker.setBindings`**
 
 `replaceBinding` finds an existing occurrence of the new code and puts the replaced code in that slot. It never mutates its input. `InputTracker` stores mutable current bindings, calls `releaseAll()`, and resets previous gamepad edges when bindings change.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run: `npx vitest run tests/core/settings.test.ts tests/core/input.test.ts`
 
