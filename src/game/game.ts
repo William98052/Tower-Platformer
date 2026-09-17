@@ -61,6 +61,11 @@ export class Game {
     for (const entity of entities) entity.update(this.time, STEP);
     const dynamicSolids = entities.flatMap((entity) => [...entity.dynamicSolids()]);
     const solids = [...sections.flatMap((section) => section.solids), ...dynamicSolids.map((solid) => solid.box)];
+    if (!this.noclip) {
+      for (const solid of dynamicSolids) {
+        if (carryStandingPlayer(this.player, solid, solids)) break;
+      }
+    }
     const environment = resolveFieldEffects(
       entities.map((entity) => entity.field(this.player)).filter((field) => field !== null),
     );
@@ -73,9 +78,6 @@ export class Game {
       this.player.vy = input.moveY * 600;
       this.player.onGround = false;
     } else {
-      for (const solid of dynamicSolids) {
-        if (carryStandingPlayer(this.player, solid, solids)) break;
-      }
       events = stepPlayer(this.player, this.run.stun > 0 ? EMPTY_INPUT : input, solids, STEP, environment);
     }
 

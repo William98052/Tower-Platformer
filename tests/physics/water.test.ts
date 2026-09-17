@@ -44,15 +44,35 @@ describe('water movement', () => {
     expect(wet.vy).toBe(220);
   });
 
-  it('applies 0.96 drag after ordinary horizontal control, then current acceleration', () => {
-    const dry = createPlayer(0, 0);
+  it('applies 0.96 drag to prior velocity before swim control and current acceleration', () => {
     const wet = createPlayer(0, 0);
-    dry.vx = wet.vx = C.RUN_SPEED;
+    wet.vx = C.RUN_SPEED;
 
-    stepPlayer(dry, input(), []);
     stepPlayer(wet, input(), [], C.STEP, { ...WATER, accelerationX: 120 });
 
-    expect(wet.vx).toBeCloseTo(dry.vx * 0.96 + 120 * C.STEP, 9);
+    expect(wet.vx).toBeCloseTo(
+      C.RUN_SPEED * 0.96 - C.AIR_ACCEL * C.STEP + 120 * C.STEP,
+      9,
+    );
+  });
+
+  it('does not damp same-frame swim control acceleration from rest', () => {
+    const wet = createPlayer(0, 0);
+
+    stepPlayer(wet, input({ moveX: 1 }), [], C.STEP, WATER);
+
+    expect(wet.vx).toBe(C.AIR_ACCEL * C.STEP);
+    expect(wet.vx).not.toBe(C.AIR_ACCEL * C.STEP * 0.96);
+  });
+
+  it('can sustain normal run speed while swimming with held movement', () => {
+    const wet = createPlayer(0, 0);
+
+    for (let step = 0; step < 240; step++) {
+      stepPlayer(wet, input({ moveX: 1 }), [], C.STEP, WATER);
+    }
+
+    expect(wet.vx).toBe(C.RUN_SPEED);
   });
 
   it.each([

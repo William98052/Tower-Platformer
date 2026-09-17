@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import * as C from '../../src/core/constants';
 import { EMPTY_INPUT } from '../../src/core/input';
 import type { DynamicSolid, Entity, EntityContact, FieldEffect } from '../../src/entities/entity';
+import { WaterEntity } from '../../src/entities/water';
 import { Game } from '../../src/game/game';
 import type { Player } from '../../src/physics/player';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
@@ -154,7 +156,11 @@ const interactionStage: StageDef = {
 };
 
 function installEntity(game: Game, entity: Entity): void {
-  (game as unknown as { entitiesBySection: Entity[][] }).entitiesBySection[0] = [entity];
+  installEntities(game, [entity]);
+}
+
+function installEntities(game: Game, entities: Entity[]): void {
+  (game as unknown as { entitiesBySection: Entity[][] }).entitiesBySection[0] = entities;
 }
 
 function testEntity(options: {
@@ -191,22 +197,40 @@ describe('Game entity interaction pipeline', () => {
     expect(game.player.y).toBe(172);
   });
 
-  it('samples entity fields before platform carry changes the player position', () => {
+  it('samples water after platform carry so crossing into water is immediate', () => {
     const game = new Game('hard', interactionStage);
-    let sampledAtX: number | null = null;
-    installEntity(game, testEntity({
-      dynamicSolids: () => [{ box: { x: 103, y: 200, w: 120, h: 20 }, delta: { x: 3, y: 0 } }],
-      field: (player) => {
-        sampledAtX = player.x;
-        return { accelerationX: 0, accelerationY: 0 };
-      },
-    }));
-    Object.assign(game.player, { x: 130, y: 172, onGround: true });
+    const platform = testEntity({
+      dynamicSolids: () => [{ box: { x: 100, y: 200, w: 120, h: 20 }, delta: { x: 20, y: 0 } }],
+    });
+    const water = new WaterEntity({
+      type: 'water', x: 110, y: 140, w: 200, h: 100, currentX: 0, currentY: 0,
+    });
+    installEntities(game, [platform, water]);
+    Object.assign(game.player, { x: 80, y: 172, onGround: true });
 
     game.step(EMPTY_INPUT, 0);
 
-    expect(sampledAtX).toBe(130);
-    expect(game.player.x).toBe(133);
+    expect(game.player.x).toBe(100);
+    expect(game.player.wasSubmerged).toBe(true);
+  });
+
+  it('samples water after platform carry so exiting caps velocity immediately', () => {
+    const game = new Game('hard', interactionStage);
+    const platform = testEntity({
+      dynamicSolids: () => [{ box: { x: 100, y: 200, w: 120, h: 20 }, delta: { x: 20, y: 0 } }],
+    });
+    const water = new WaterEntity({
+      type: 'water', x: 0, y: 140, w: 110, h: 100, currentX: 0, currentY: 0,
+    });
+    installEntities(game, [platform, water]);
+    Object.assign(game.player, {
+      x: 90, y: 172, vx: 1_000, vy: 0, onGround: true, wasSubmerged: true,
+    });
+
+    game.step(EMPTY_INPUT, 0);
+
+    expect(game.player.wasSubmerged).toBe(false);
+    expect(game.player.vx).toBe(C.RUN_SPEED - C.GROUND_DECEL * C.STEP);
   });
 
   it('includes active dynamic boxes in real player collision resolution', () => {

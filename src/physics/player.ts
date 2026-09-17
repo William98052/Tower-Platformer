@@ -97,13 +97,14 @@ export function stepPlayer(
   if (p.wasSubmerged && !submerged) capWaterExitVelocity(p);
   tickTimers(p, submerged ? { ...input, jumpPressed: false } : input, dt);
   if (submerged) p.jumpBuffer = 0;
+  if (submerged) p.vx *= environment.dragPerStep;
   if (tryStartDash(p, input, events) || p.dashTimer > 0) {
     updateDash(p, dt);
   } else {
     applyHorizontal(p, input, dt);
     applyGravity(p, input, dt, environment);
   }
-  applyEnvironment(p, environment, submerged, dt);
+  applyEnvironmentAcceleration(p, environment, dt);
   if (submerged) tryStroke(p, input, environment, strokeStartVy);
   else tryJump(p, events);
   applyJumpCut(p, input);
@@ -147,8 +148,7 @@ function tickTimers(p: Player, input: InputFrame, dt: number): void {
   p.strokeCooldown = Math.max(0, p.strokeCooldown - dt);
 }
 
-function applyEnvironment(p: Player, environment: PlayerEnvironment, submerged: boolean, dt: number): void {
-  if (submerged) p.vx *= environment.dragPerStep;
+function applyEnvironmentAcceleration(p: Player, environment: PlayerEnvironment, dt: number): void {
   p.vx += environment.accelerationX * dt;
   p.vy = Math.min(p.vy + environment.accelerationY * dt, environment.maxFall);
 }
