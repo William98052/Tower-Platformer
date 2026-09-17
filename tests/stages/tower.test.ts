@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
 import { STAGE_02_CLOCKWORK } from '../../src/stages/stage02-clockwork';
+import { STAGE_03_AQUEDUCT } from '../../src/stages/stage03-aqueduct';
 import { TOWER, validateTower } from '../../src/stages/tower';
 import type { StageDef, TowerDef } from '../../src/stages/types';
 
@@ -12,8 +13,8 @@ function stage(id: number): StageDef {
 }
 
 describe('TOWER', () => {
-  it('contains Moss Ruins followed by Clockwork Hall', () => {
-    expect(TOWER.stages).toEqual([STAGE_01_MOSS, STAGE_02_CLOCKWORK]);
+  it('contains Moss Ruins, Clockwork Hall, and Sunken Aqueduct', () => {
+    expect(TOWER.stages).toEqual([STAGE_01_MOSS, STAGE_02_CLOCKWORK, STAGE_03_AQUEDUCT]);
     expect(validateTower(TOWER)).toEqual([]);
   });
 });
