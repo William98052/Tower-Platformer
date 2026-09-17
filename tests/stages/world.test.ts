@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activeSections, buildWorld, stageAtSection, validateStage } from '../../src/stages/world';
-import type { StageDef, TowerDef } from '../../src/stages/types';
+import type { EntityDef, StageDef, TowerDef } from '../../src/stages/types';
 
 const stage: StageDef = {
   id: 1,
@@ -64,6 +64,26 @@ describe('validateStage', () => {
       expect.stringContaining('checkpoint'),
       expect.stringContaining('12 units'),
       expect.stringContaining('launch'),
+    ]));
+  });
+
+  it('rejects invalid Clockwork machinery parameters', () => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push(
+      { type: 'gear', x: 20, y: 20, radius: 0, period: 5, phase: -0.1, paddleW: 60 } as unknown as EntityDef,
+      { type: 'piston', x: 20, y: 20, w: 60, h: 20, axis: 'x', travel: 0, phase: 1 },
+      { type: 'timedDoor', x: 20, y: 20, w: 8, h: 80, phase: 1.2 },
+    );
+
+    expect(validateStage(broken)).toEqual(expect.arrayContaining([
+      expect.stringContaining('gear radius'),
+      expect.stringContaining('gear period'),
+      expect.stringContaining('gear phase'),
+      expect.stringContaining('piston travel'),
+      expect.stringContaining('piston phase'),
+      expect.stringContaining('timed door phase'),
+      expect.stringContaining('timed door'),
+      expect.stringContaining('12 units'),
     ]));
   });
 });

@@ -1,6 +1,14 @@
 import type { AABB } from '../physics/aabb';
 
-export type SurfaceType = 'normal' | 'oneWay' | 'vine' | 'bouncy' | 'slopeUp' | 'slopeDown';
+export type SurfaceType =
+  | 'normal'
+  | 'oneWay'
+  | 'vine'
+  | 'bouncy'
+  | 'slopeUp'
+  | 'slopeDown'
+  | 'conveyorLeft'
+  | 'conveyorRight';
 export type SolidRole = 'main' | 'recovery' | 'boundary';
 
 export interface Point {
@@ -10,6 +18,7 @@ export interface Point {
 
 export interface SolidDef extends AABB {
   surface: SurfaceType;
+  conveyorSpeed?: number;
   role?: SolidRole;
 }
 
@@ -17,7 +26,10 @@ export type PromptId = 'jump' | 'wallJump' | 'dash';
 
 export type EntityDef =
   | { type: 'mushroom'; x: number; y: number; w: number; h: number; launch: number }
-  | { type: 'prompt'; x: number; y: number; w: number; h: number; prompt: PromptId };
+  | { type: 'prompt'; x: number; y: number; w: number; h: number; prompt: PromptId }
+  | { type: 'gear'; x: number; y: number; radius: number; period: 4 | 6; phase: number; paddleW: number }
+  | { type: 'piston'; x: number; y: number; w: number; h: number; axis: 'x' | 'y'; travel: number; phase: number }
+  | { type: 'timedDoor'; x: number; y: number; w: number; h: number; phase: number };
 
 export interface SectionDef {
   id: number;

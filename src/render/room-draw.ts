@@ -25,6 +25,8 @@ const SURFACE_COLORS: Record<SurfaceType, { body: string; edge: string }> = {
   bouncy: { body: '#53623a', edge: '#edf2a6' },
   slopeUp: { body: '#304334', edge: '#acd47d' },
   slopeDown: { body: '#354738', edge: '#b7da86' },
+  conveyorLeft: { body: '#343a38', edge: '#c9a75d' },
+  conveyorRight: { body: '#343a38', edge: '#c9a75d' },
 };
 
 export function surfaceColors(surface: SurfaceType = 'normal'): { body: string; edge: string } {

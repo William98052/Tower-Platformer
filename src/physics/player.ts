@@ -201,7 +201,7 @@ function moveAndResolve(p: Player, solids: readonly CollisionSolid[], dt: number
   }
   const impact = p.vy;
   const previousBottom = p.y + p.h;
-  const dx = p.vx * dt;
+  const dx = (p.vx + supportingConveyorSpeed(p, solids)) * dt;
   const dy = p.vy * dt;
   const blocking = collisionSolidsFor(p, solids, dy);
   const result = moveAndCollide(p, dx, dy, blocking, C.CORNER_CORRECTION);
@@ -239,6 +239,20 @@ function moveAndResolve(p: Player, solids: readonly CollisionSolid[], dt: number
     p.onGround = false;
     p.jumping = false;
   }
+}
+
+function supportingConveyorSpeed(p: Player, solids: readonly CollisionSolid[]): number {
+  if (!p.onGround) return 0;
+  const foot = p.y + p.h;
+  const support = solids.find((solid) => (
+    (solid.surface === 'conveyorLeft' || solid.surface === 'conveyorRight')
+    && p.x + p.w > solid.x
+    && p.x < solid.x + solid.w
+    && Math.abs(foot - solid.y) <= 1
+  ));
+  if (!support) return 0;
+  const speed = support.conveyorSpeed ?? 0;
+  return support.surface === 'conveyorLeft' ? -speed : speed;
 }
 
 /** Milestone 1's allocation-free AABB path stays hot for route simulations and plain rooms. */
