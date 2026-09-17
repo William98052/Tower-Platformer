@@ -2,7 +2,7 @@ import { VIEW_H, VIEW_W } from '../core/constants';
 import type { CollisionSolid } from '../physics/collision';
 import type { SolidRole, SurfaceType } from '../stages/types';
 import { CLOCKWORK_THEME_RENDERER } from './clockwork-draw';
-import type { ThemeBlend, ThemeRenderer } from './themes';
+import { composeThemeLayers, type ThemeBlend, type ThemeRenderer } from './themes';
 
 const COLORS = {
   skyTop: '#0e1815',
@@ -176,6 +176,7 @@ function drawMossSolids(
   camX: number,
   camY: number,
   blurScale = 1,
+  _t = 0,
 ): void {
   for (const s of solids) {
     const sx = s.x - camX;
@@ -288,14 +289,12 @@ export function drawBackground(
     MOSS_THEME_RENDERER.drawBackground(ctx, camX, camY, t, effectsScale);
     return;
   }
-  drawThemeLayer(ctx, 1 - blend.mix, () => {
-    rendererFor(blend.lower.id).drawBackground(ctx, camX, camY, t, effectsScale);
-  });
-  if (blend.mix > 0 || blend.upper.id !== blend.lower.id) {
-    drawThemeLayer(ctx, blend.mix, () => {
-      rendererFor(blend.upper.id).drawBackground(ctx, camX, camY, t, effectsScale);
-    });
-  }
+  composeThemeLayers(
+    ctx,
+    blend.mix,
+    () => rendererFor(blend.lower.id).drawBackground(ctx, camX, camY, t, effectsScale),
+    () => rendererFor(blend.upper.id).drawBackground(ctx, camX, camY, t, effectsScale),
+  );
 }
 
 export function drawSolids(
@@ -305,25 +304,16 @@ export function drawSolids(
   camY: number,
   blurScale = 1,
   blend?: ThemeBlend,
+  t = 0,
 ): void {
   if (!blend) {
-    MOSS_THEME_RENDERER.drawSolids(ctx, solids, camX, camY, blurScale);
+    MOSS_THEME_RENDERER.drawSolids(ctx, solids, camX, camY, blurScale, t);
     return;
   }
-  drawThemeLayer(ctx, 1 - blend.mix, () => {
-    rendererFor(blend.lower.id).drawSolids(ctx, solids, camX, camY, blurScale);
-  });
-  if (blend.mix > 0 || blend.upper.id !== blend.lower.id) {
-    drawThemeLayer(ctx, blend.mix, () => {
-      rendererFor(blend.upper.id).drawSolids(ctx, solids, camX, camY, blurScale);
-    });
-  }
-}
-
-function drawThemeLayer(ctx: CanvasRenderingContext2D, alpha: number, draw: () => void): void {
-  if (alpha <= 0) return;
-  ctx.save();
-  ctx.globalAlpha *= alpha;
-  draw();
-  ctx.restore();
+  composeThemeLayers(
+    ctx,
+    blend.mix,
+    () => rendererFor(blend.lower.id).drawSolids(ctx, solids, camX, camY, blurScale, t),
+    () => rendererFor(blend.upper.id).drawSolids(ctx, solids, camX, camY, blurScale, t),
+  );
 }

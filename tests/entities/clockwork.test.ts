@@ -3,7 +3,7 @@ import { STEP } from '../../src/core/constants';
 import { createEntities } from '../../src/entities/factory';
 import { GearEntity } from '../../src/entities/gear';
 import { PistonEntity } from '../../src/entities/piston';
-import { TimedDoorEntity } from '../../src/entities/timed-door';
+import { timedDoorAudioEvents, timedDoorStateAt, TimedDoorEntity } from '../../src/entities/timed-door';
 import { createPlayer } from '../../src/physics/player';
 
 const gearDef = { type: 'gear' as const, x: 300, y: 200, radius: 60, period: 4 as const, phase: 0, paddleW: 80 };
@@ -136,6 +136,25 @@ describe('TimedDoorEntity', () => {
     activated.update(t, STEP);
 
     expect(activated.dynamicSolids()[0].delta).toEqual(uninterrupted.dynamicSolids()[0].delta);
+  });
+
+  it('warns before closing motion and advances a continuous full-cycle telegraph', () => {
+    const beforeWarning = timedDoorStateAt(1.19, 0);
+    const warning = timedDoorStateAt(1.21, 0);
+    const closing = timedDoorStateAt(1.41, 0);
+
+    expect(beforeWarning.warning).toBe(false);
+    expect(warning).toMatchObject({ phase: 'open', warning: true, closedAmount: 0 });
+    expect(closing).toMatchObject({ phase: 'closing', warning: false });
+    expect(warning.cycleProgress).toBeCloseTo(1.21 / 3, 9);
+    expect(closing.cycleProgress).toBeCloseTo(1.41 / 3, 9);
+  });
+
+  it('emits the warning cue before the later door-motion cue', () => {
+    expect(timedDoorAudioEvents(timedDoorStateAt(1.19, 0), timedDoorStateAt(1.21, 0)))
+      .toEqual(['machineWarning']);
+    expect(timedDoorAudioEvents(timedDoorStateAt(1.39, 0), timedDoorStateAt(1.41, 0)))
+      .toEqual(['door']);
   });
 });
 

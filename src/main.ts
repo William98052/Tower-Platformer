@@ -1,5 +1,5 @@
 import { AppController } from './app/controller';
-import { AudioManager } from './audio/audio';
+import { ambienceMixForThemeBlend, AudioManager } from './audio/audio';
 import { Camera } from './core/camera';
 import { MAX_FRAME_DT, STEP, VIEW_H, VIEW_W } from './core/constants';
 import { type InputFrame, InputTracker, readPad, withoutPresses } from './core/input';
@@ -8,7 +8,7 @@ import { SaveStore, type StorageLike } from './core/save';
 import { DEFAULT_SETTINGS, effectsPolicy, replaceBinding, type Settings } from './core/settings';
 import { DebugOverlay } from './debug/overlay';
 import { PistonEntity } from './entities/piston';
-import { TimedDoorEntity } from './entities/timed-door';
+import { timedDoorAudioEvents, TimedDoorEntity, type TimedDoorAudioState } from './entities/timed-door';
 import { Game, type GameStepResult } from './game/game';
 import { Afterimages, effectiveBurstCount, effectiveParticleLimit, Particles, Squash, squashScale } from './render/effects';
 import { drawAfterimages, drawParticles } from './render/effects-draw';
@@ -59,7 +59,7 @@ let lastMs = 0;
 let stepsThisFrame = 0;
 let stepCount = 0;
 let presentationTime = 0;
-const machinePhases = new WeakMap<object, string>();
+const machinePhases = new WeakMap<object, { phase: string; warning: boolean }>();
 
 const DUST = '#cfe3a8';
 const SPARK = '#ffe6b0';
@@ -128,11 +128,16 @@ function handleMenuAction(action: MenuAction): void {
 }
 
 function syncAmbience(): void {
-  if (app.screen === 'playing' && app.game) {
-    audio.setAmbience(app.game.currentStage.id === 2 ? 'clockwork' : 'moss');
+  const game = app.game;
+  if (!game) {
+    audio.setAmbience('off');
+    return;
   }
-  else if (app.game && (app.screen === 'paused' || app.screen === 'settings')) audio.setAmbience('paused');
-  else audio.setAmbience('off');
+  const blend = themeBlendAt(game.world, camera.y + VIEW_H / 2);
+  if (app.screen === 'playing') audio.setAmbience(ambienceMixForThemeBlend(blend));
+  else if (app.screen === 'paused' || app.screen === 'settings') {
+    audio.setAmbience(ambienceMixForThemeBlend(blend, true));
+  } else audio.setAmbience('off');
 }
 
 function resetFrameState(): void {
@@ -247,15 +252,19 @@ function playMachineTransitions(game: Game): void {
   for (const entity of game.activeEntities(camera.y)) {
     if (!(entity instanceof PistonEntity) && !(entity instanceof TimedDoorEntity)) continue;
     const previous = machinePhases.get(entity);
-    const phase = entity.phase;
-    machinePhases.set(entity, phase);
-    if (previous === undefined || previous === phase) continue;
+    const current = {
+      phase: entity.phase,
+      warning: entity instanceof TimedDoorEntity ? entity.warning : entity.phase === 'warning',
+    };
+    machinePhases.set(entity, current);
+    if (previous === undefined) continue;
     if (entity instanceof PistonEntity) {
-      if (phase === 'warning') audio.play('machineWarning');
-      else if (phase === 'extended' && previous === 'warning') audio.play('piston');
+      if (current.phase === 'warning' && previous.phase !== 'warning') audio.play('machineWarning');
+      else if (current.phase === 'extended' && previous.phase === 'warning') audio.play('piston');
     } else {
-      if (phase === 'closing') audio.play('machineWarning');
-      if (phase === 'closing' || phase === 'opening') audio.play('door');
+      for (const event of timedDoorAudioEvents(previous as TimedDoorAudioState, current as TimedDoorAudioState)) {
+        audio.play(event);
+      }
     }
   }
 }
@@ -288,11 +297,11 @@ function update(frameDt: number): void {
         stepCount++;
         if (game.player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(prevX, prevY);
       }
-      syncAmbience();
     }
     const rx = prevX + (game.player.x - prevX) * loop.alpha;
     const ry = prevY + (game.player.y - prevY) * loop.alpha;
     camera.follow(rx + game.player.w / 2, ry + game.player.h / 2, game.player.vy, frameDt);
+    syncAmbience();
   } else if (!game) {
     const travel = Math.max(1, presentationGame.world.height - VIEW_H);
     camera.y = travel - (presentationTime * 18 % travel);
@@ -315,7 +324,7 @@ function render(): void {
   const glowScale = settings.reducedEffects ? 0 : blurScale;
   const blend = themeBlendAt(game.world, camY + VIEW_H / 2);
   drawBackground(ctx, camX, camY, app.game?.time ?? presentationTime, blend, settings.reducedEffects ? 0.5 : 1);
-  drawSolids(ctx, game.world.solids, camX, camY, glowScale, blend);
+  drawSolids(ctx, game.world.solids, camX, camY, glowScale, blend, app.game?.time ?? presentationTime);
   if (!app.game) return;
   drawCheckpoints(ctx, game.world.sections, game.run.checkpoint, game.run.mode, camX, camY, glowScale);
   drawEntities(ctx, game.activeEntities(camera.y), camX, camY, game.time, loop.alpha);

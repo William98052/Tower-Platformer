@@ -43,6 +43,7 @@ function drawBackground(
     drawClock(ctx, x, y, 58 + (i % 2) * 14, t * (i % 2 ? -0.28 : 0.22));
   }
   drawShafts(ctx, camY, t);
+  drawWarningLamps(ctx, camY, t);
   drawDust(ctx, camY, t, effectsScale);
 }
 
@@ -114,12 +115,33 @@ function drawDust(ctx: CanvasRenderingContext2D, camY: number, t: number, effect
   }
 }
 
+export function warningLampIntensity(t: number, index: number): number {
+  return 0.45 + (Math.sin(t * 4 + index * 1.7) + 1) * 0.275;
+}
+
+function drawWarningLamps(ctx: CanvasRenderingContext2D, camY: number, t: number): void {
+  for (let i = 0; i < 6; i += 1) {
+    const x = 76 + i * 174;
+    const y = mod(i * 137 - camY * 0.22, VIEW_H + 100) - 50;
+    const intensity = warningLampIntensity(t, i);
+    ctx.save();
+    ctx.fillStyle = '#291715';
+    ctx.fillRect(x - 7, y - 7, 14, 14);
+    ctx.fillStyle = `rgba(239, 82, 43, ${intensity})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawSolids(
   ctx: CanvasRenderingContext2D,
   solids: readonly CollisionSolid[],
   camX: number,
   camY: number,
   glowScale: number,
+  t: number,
 ): void {
   for (const solid of solids) {
     const x = solid.x - camX;
@@ -149,16 +171,29 @@ function drawSolids(
       ctx.arc(x + rivet, y + 10, 2.2, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (conveyor) drawChevrons(ctx, x, y, solid.w, solid.surface === 'conveyorRight' ? 1 : -1);
+    if (conveyor) drawChevrons(ctx, x, y, solid.w, solid.surface === 'conveyorRight' ? 1 : -1, t);
     ctx.restore();
   }
 }
 
-function drawChevrons(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, direction: 1 | -1): void {
+export function conveyorChevronOffset(t: number, direction: 1 | -1): number {
+  return mod(t * 40, 38) * direction;
+}
+
+function drawChevrons(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  direction: 1 | -1,
+  t: number,
+): void {
   ctx.strokeStyle = COLORS.amber;
   ctx.lineWidth = 3;
-  for (let offset = 20; offset < width - 8; offset += 38) {
-    const center = x + offset;
+  const motion = conveyorChevronOffset(t, direction);
+  for (let offset = -18; offset < width + 18; offset += 38) {
+    if (offset + motion < 8 || offset + motion > width - 8) continue;
+    const center = x + offset + motion;
     ctx.beginPath();
     ctx.moveTo(center - direction * 8, y + 14);
     ctx.lineTo(center + direction * 2, y + 20);

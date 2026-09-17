@@ -10,13 +10,21 @@ export type SoundEvent =
   | 'piston'
   | 'door';
 export type AmbienceState = 'off' | 'paused' | 'moss' | 'clockwork';
+export interface AmbienceMix {
+  moss: number;
+  clockwork: number;
+  paused: boolean;
+}
+
+interface StageThemeRef { id: number }
+interface ThemeBlendRef { lower: StageThemeRef; upper: StageThemeRef; mix: number }
 
 export interface AudioBackend {
   unlock(): Promise<void>;
   setMasterGain(value: number): void;
   setSfxGain(value: number): void;
   play(event: SoundEvent, detail: number): void;
-  setAmbience(state: AmbienceState): void;
+  setAmbience(state: AmbienceMix): void;
   dispose(): void;
 }
 
@@ -26,7 +34,7 @@ export class AudioManager {
   private disposed = false;
   private master = 0.8;
   private sfx = 1;
-  private ambience: AmbienceState = 'off';
+  private ambience: AmbienceMix = { moss: 0, clockwork: 0, paused: false };
 
   constructor(private readonly backend: AudioBackend = new BrowserAudioBackend()) {}
 
@@ -65,12 +73,13 @@ export class AudioManager {
     }
   }
 
-  setAmbience(state: AmbienceState): void {
-    if (state === this.ambience) return;
-    this.ambience = state;
+  setAmbience(state: AmbienceState | AmbienceMix): void {
+    const next = normalizeAmbience(state, this.ambience);
+    if (sameAmbience(next, this.ambience)) return;
+    this.ambience = next;
     if (!this.unlocked || this.failed || this.disposed) return;
     try {
-      this.backend.setAmbience(state);
+      this.backend.setAmbience(next);
     } catch {
       this.failed = true;
     }
@@ -87,9 +96,10 @@ export class BrowserAudioBackend implements AudioBackend {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private sfx: GainNode | null = null;
-  private ambienceGain: GainNode | null = null;
-  private ambienceSources: AudioScheduledSourceNode[] = [];
-  private ambienceTheme: 'moss' | 'clockwork' | null = null;
+  private mossGain: GainNode | null = null;
+  private clockworkGain: GainNode | null = null;
+  private mossSources: AudioScheduledSourceNode[] = [];
+  private clockworkSources: AudioScheduledSourceNode[] = [];
 
   async unlock(): Promise<void> {
     if (!this.context) {
@@ -99,11 +109,14 @@ export class BrowserAudioBackend implements AudioBackend {
       this.context = new AudioContextCtor();
       this.master = this.context.createGain();
       this.sfx = this.context.createGain();
-      this.ambienceGain = this.context.createGain();
+      this.mossGain = this.context.createGain();
+      this.clockworkGain = this.context.createGain();
       this.sfx.connect(this.master);
-      this.ambienceGain.connect(this.master);
+      this.mossGain.connect(this.master);
+      this.clockworkGain.connect(this.master);
       this.master.connect(this.context.destination);
-      this.ambienceGain.gain.value = 0;
+      this.mossGain.gain.value = 0;
+      this.clockworkGain.gain.value = 0;
     }
     if (this.context.state === 'suspended') await this.context.resume();
   }
@@ -151,36 +164,22 @@ export class BrowserAudioBackend implements AudioBackend {
     }
   }
 
-  setAmbience(state: AmbienceState): void {
-    if (!this.context || !this.ambienceGain) return;
+  setAmbience(state: AmbienceMix): void {
+    if (!this.context || !this.mossGain || !this.clockworkGain) return;
     const now = this.context.currentTime;
-    if (state === 'off') {
-      this.ambienceGain.gain.setTargetAtTime(0, now, 0.2);
-      for (const source of this.ambienceSources) {
-        try { source.stop(now + 0.8); } catch { /* already stopped */ }
-      }
-      this.ambienceSources = [];
-      this.ambienceTheme = null;
-      return;
-    }
-    if (state !== 'paused' && state !== this.ambienceTheme) {
-      for (const source of this.ambienceSources) {
-        try { source.stop(now + 0.08); } catch { /* already stopped */ }
-      }
-      this.ambienceSources = [];
-      this.ambienceTheme = state;
-      if (state === 'clockwork') this.startClockworkAmbience();
-      else this.startMossAmbience();
-    }
-    this.ambienceGain.gain.setTargetAtTime(state === 'paused' ? 0.012 : 0.035, now, 0.25);
+    if (state.moss > 0 && this.mossSources.length === 0) this.startMossAmbience();
+    if (state.clockwork > 0 && this.clockworkSources.length === 0) this.startClockworkAmbience();
+    const duck = state.paused ? 0.34 : 1;
+    this.mossGain.gain.setTargetAtTime(0.035 * state.moss * duck, now, 0.2);
+    this.clockworkGain.gain.setTargetAtTime(0.035 * state.clockwork * duck, now, 0.2);
   }
 
   dispose(): void {
-    for (const source of this.ambienceSources) {
+    for (const source of [...this.mossSources, ...this.clockworkSources]) {
       try { source.stop(); } catch { /* already stopped */ }
     }
-    this.ambienceSources = [];
-    this.ambienceTheme = null;
+    this.mossSources = [];
+    this.clockworkSources = [];
     void this.context?.close();
     this.context = null;
   }
@@ -223,7 +222,7 @@ export class BrowserAudioBackend implements AudioBackend {
 
   private startMossAmbience(): void {
     const context = this.context;
-    const destination = this.ambienceGain;
+    const destination = this.mossGain;
     if (!context || !destination) return;
     const noiseBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -244,12 +243,12 @@ export class BrowserAudioBackend implements AudioBackend {
     drone.connect(droneGain).connect(destination);
     noise.start();
     drone.start();
-    this.ambienceSources = [noise, drone];
+    this.mossSources = [noise, drone];
   }
 
   private startClockworkAmbience(): void {
     const context = this.context;
-    const destination = this.ambienceGain;
+    const destination = this.clockworkGain;
     if (!context || !destination) return;
     const noiseBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -278,8 +277,34 @@ export class BrowserAudioBackend implements AudioBackend {
     noise.start();
     drone.start();
     ticks.start();
-    this.ambienceSources = [noise, drone, ticks];
+    this.clockworkSources = [noise, drone, ticks];
   }
+}
+
+export function ambienceMixForThemeBlend(blend: ThemeBlendRef, paused = false): AmbienceMix {
+  const mix = clamp01(blend.mix);
+  const weights = new Map<number, number>();
+  weights.set(blend.lower.id, (weights.get(blend.lower.id) ?? 0) + 1 - mix);
+  weights.set(blend.upper.id, (weights.get(blend.upper.id) ?? 0) + mix);
+  return {
+    moss: clamp01(weights.get(1) ?? 0),
+    clockwork: clamp01(weights.get(2) ?? 0),
+    paused,
+  };
+}
+
+function normalizeAmbience(state: AmbienceState | AmbienceMix, previous: AmbienceMix): AmbienceMix {
+  if (typeof state !== 'string') {
+    return { moss: clamp01(state.moss), clockwork: clamp01(state.clockwork), paused: Boolean(state.paused) };
+  }
+  if (state === 'paused') return { ...previous, paused: true };
+  if (state === 'moss') return { moss: 1, clockwork: 0, paused: false };
+  if (state === 'clockwork') return { moss: 0, clockwork: 1, paused: false };
+  return { moss: 0, clockwork: 0, paused: false };
+}
+
+function sameAmbience(a: AmbienceMix, b: AmbienceMix): boolean {
+  return a.moss === b.moss && a.clockwork === b.clockwork && a.paused === b.paused;
 }
 
 function clamp01(value: number): number {

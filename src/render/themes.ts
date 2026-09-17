@@ -21,6 +21,7 @@ export interface ThemeRenderer {
     camX: number,
     camY: number,
     glowScale: number,
+    t: number,
   ): void;
 }
 
@@ -52,6 +53,29 @@ export function themeBlendAt(world: World, cameraY: number): ThemeBlend {
     };
   }
   return { lower: current.stage, upper: current.stage, mix: 0 };
+}
+
+/**
+ * Paints the lower theme as the opaque frame base, then overlays the upper
+ * theme by `mix`. Source-over therefore yields exact (1-mix)/mix weights and
+ * can never retain pixels from the previous frame.
+ */
+export function composeThemeLayers(
+  ctx: CanvasRenderingContext2D,
+  mix: number,
+  drawLower: () => void,
+  drawUpper: () => void,
+): void {
+  const upperAlpha = clamp01(mix);
+  ctx.save();
+  ctx.globalAlpha = 1;
+  drawLower();
+  ctx.restore();
+  if (upperAlpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = upperAlpha;
+  drawUpper();
+  ctx.restore();
 }
 
 function clamp01(value: number): number {

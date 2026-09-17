@@ -1,15 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { AudioManager, type AmbienceState, type AudioBackend, type SoundEvent } from '../../src/audio/audio';
+import {
+  ambienceMixForThemeBlend,
+  AudioManager,
+  type AmbienceMix,
+  type AudioBackend,
+  type SoundEvent,
+} from '../../src/audio/audio';
+import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
+import { STAGE_02_CLOCKWORK } from '../../src/stages/stage02-clockwork';
+import { buildWorld } from '../../src/stages/world';
+import { themeBlendAt } from '../../src/render/themes';
 
 class FakeBackend implements AudioBackend {
   unlocks = 0;
   masterGain = 1;
   sfxGain = 1;
   voices: Array<{ event: SoundEvent; detail: number }> = [];
-  ambience: AmbienceState[] = [];
+  ambience: AmbienceMix[] = [];
   disposed = false;
   failUnlock = false;
   failPlay = false;
+  failAmbience = false;
 
   async unlock() {
     this.unlocks++;
@@ -21,7 +32,10 @@ class FakeBackend implements AudioBackend {
     if (this.failPlay) throw new Error('voice failed');
     this.voices.push({ event, detail });
   }
-  setAmbience(state: AmbienceState) { this.ambience.push(state); }
+  setAmbience(state: AmbienceMix) {
+    if (this.failAmbience) throw new Error('ambience failed');
+    this.ambience.push(state);
+  }
   dispose() { this.disposed = true; }
 }
 
@@ -68,12 +82,16 @@ describe('AudioManager', () => {
     const audio = new AudioManager(backend);
     audio.setAmbience('moss');
     await audio.unlock();
-    expect(backend.ambience).toEqual(['moss']);
+    expect(backend.ambience).toEqual([{ moss: 1, clockwork: 0, paused: false }]);
     audio.play('land', 900);
     audio.setAmbience('paused');
     audio.setAmbience('off');
     expect(backend.voices[0]).toEqual({ event: 'land', detail: 900 });
-    expect(backend.ambience).toEqual(['moss', 'paused', 'off']);
+    expect(backend.ambience).toEqual([
+      { moss: 1, clockwork: 0, paused: false },
+      { moss: 1, clockwork: 0, paused: true },
+      { moss: 0, clockwork: 0, paused: false },
+    ]);
   });
 
   it('disposes its backend once', async () => {
@@ -123,5 +141,41 @@ describe('AudioManager', () => {
     backend.failPlay = false;
     expect(audio.play('machineWarning')).toBe(false);
     expect(backend.voices).toEqual([]);
+  });
+
+  it('maps the visual blend to exact Moss and Clockwork ambience gains', () => {
+    const world = buildWorld({ stages: [STAGE_01_MOSS, STAGE_02_CLOCKWORK] });
+    const boundary = world.sections.find((section) => section.stageId === 2)!.bottom;
+    expect(ambienceMixForThemeBlend(themeBlendAt(world, boundary + 600)))
+      .toEqual({ moss: 1, clockwork: 0, paused: false });
+    expect(ambienceMixForThemeBlend(themeBlendAt(world, boundary + 300)))
+      .toEqual({ moss: 0.5, clockwork: 0.5, paused: false });
+    expect(ambienceMixForThemeBlend(themeBlendAt(world, boundary)))
+      .toEqual({ moss: 0, clockwork: 1, paused: false });
+  });
+
+  it('applies a live ambience blend alongside master mute and pause ducking', async () => {
+    const backend = new FakeBackend();
+    const audio = new AudioManager(backend);
+    audio.setAmbience({ moss: 0.5, clockwork: 0.5, paused: false });
+    await audio.unlock();
+    expect(backend.ambience.at(-1)).toEqual({ moss: 0.5, clockwork: 0.5, paused: false });
+    audio.setVolumes(0, 1);
+    expect(backend.masterGain).toBe(0);
+    audio.setAmbience('paused');
+    expect(backend.ambience.at(-1)).toEqual({ moss: 0.5, clockwork: 0.5, paused: true });
+  });
+
+  it('isolates an ambience backend failure and stays silent afterward', async () => {
+    const backend = new FakeBackend();
+    const audio = new AudioManager(backend);
+    await audio.unlock();
+    backend.failAmbience = true;
+    audio.setAmbience({ moss: 0.5, clockwork: 0.5, paused: false });
+    backend.failAmbience = false;
+
+    expect(audio.play('door')).toBe(false);
+    audio.setAmbience('clockwork');
+    expect(backend.ambience).toEqual([{ moss: 0, clockwork: 0, paused: false }]);
   });
 });
