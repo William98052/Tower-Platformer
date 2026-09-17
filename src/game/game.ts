@@ -61,6 +61,9 @@ export class Game {
     for (const entity of entities) entity.update(this.time, STEP);
     const dynamicSolids = entities.flatMap((entity) => [...entity.dynamicSolids()]);
     const solids = [...sections.flatMap((section) => section.solids), ...dynamicSolids.map((solid) => solid.box)];
+    const environment = resolveFieldEffects(
+      entities.map((entity) => entity.field(this.player)).filter((field) => field !== null),
+    );
 
     let events = NO_EVENTS;
     if (this.noclip) {
@@ -73,9 +76,6 @@ export class Game {
       for (const solid of dynamicSolids) {
         if (carryStandingPlayer(this.player, solid, solids)) break;
       }
-      const environment = resolveFieldEffects(
-        entities.map((entity) => entity.field(this.player)).filter((field) => field !== null),
-      );
       events = stepPlayer(this.player, this.run.stun > 0 ? EMPTY_INPUT : input, solids, STEP, environment);
     }
 

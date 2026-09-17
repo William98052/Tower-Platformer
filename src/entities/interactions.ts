@@ -9,9 +9,11 @@ export function carryStandingPlayer(
   solid: DynamicSolid,
   blockers: readonly CollisionSolid[] = [],
 ): boolean {
-  const standing = Math.abs(player.y + player.h - solid.box.y) <= 1
-    && player.x + player.w > solid.box.x
-    && player.x < solid.box.x + solid.box.w;
+  const previousX = solid.box.x - solid.delta.x;
+  const previousY = solid.box.y - solid.delta.y;
+  const standing = Math.abs(player.y + player.h - previousY) <= 1
+    && player.x + player.w > previousX
+    && player.x < previousX + solid.box.w;
   if (!standing) return false;
 
   const candidate = {

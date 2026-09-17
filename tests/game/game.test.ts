@@ -181,7 +181,7 @@ describe('Game entity interaction pipeline', () => {
     let delta = { x: 0, y: 0 };
     installEntity(game, testEntity({
       update: () => { delta = { x: 3, y: 0 }; },
-      dynamicSolids: () => [{ box: { x: 100, y: 200, w: 120, h: 20 }, delta }],
+      dynamicSolids: () => [{ box: { x: 103, y: 200, w: 120, h: 20 }, delta }],
     }));
     Object.assign(game.player, { x: 130, y: 172, onGround: true });
 
@@ -189,6 +189,24 @@ describe('Game entity interaction pipeline', () => {
 
     expect(game.player.x).toBe(133);
     expect(game.player.y).toBe(172);
+  });
+
+  it('samples entity fields before platform carry changes the player position', () => {
+    const game = new Game('hard', interactionStage);
+    let sampledAtX: number | null = null;
+    installEntity(game, testEntity({
+      dynamicSolids: () => [{ box: { x: 103, y: 200, w: 120, h: 20 }, delta: { x: 3, y: 0 } }],
+      field: (player) => {
+        sampledAtX = player.x;
+        return { accelerationX: 20, accelerationY: 0 };
+      },
+    }));
+    Object.assign(game.player, { x: 130, y: 172, onGround: true });
+
+    game.step(EMPTY_INPUT, 0);
+
+    expect(sampledAtX).toBe(130);
+    expect(game.player.x).toBe(133);
   });
 
   it('includes active dynamic boxes in real player collision resolution', () => {

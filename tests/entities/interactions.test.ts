@@ -5,17 +5,24 @@ import { createPlayer } from '../../src/physics/player';
 
 function movingSolid(dx: number, dy: number): DynamicSolid {
   return {
-    box: { x: 100, y: 200, w: 120, h: 20, surface: 'normal' },
+    box: { x: 100 + dx, y: 200 + dy, w: 120, h: 20, surface: 'normal' },
     delta: { x: dx, y: dy },
   };
 }
 
 describe('carryStandingPlayer', () => {
-  it('carries a standing player by the solid horizontal and vertical displacement', () => {
+  it('carries from the previous horizontal extent after the solid has moved', () => {
+    const player = createPlayer(73, 172);
+
+    expect(carryStandingPlayer(player, movingSolid(3, 0))).toBe(true);
+    expect({ x: player.x, y: player.y }).toEqual({ x: 76, y: 172 });
+  });
+
+  it('carries from the previous top after the solid has moved vertically', () => {
     const player = createPlayer(130, 172);
 
-    expect(carryStandingPlayer(player, movingSolid(3, -2))).toBe(true);
-    expect({ x: player.x, y: player.y }).toEqual({ x: 133, y: 170 });
+    expect(carryStandingPlayer(player, movingSolid(0, -2))).toBe(true);
+    expect({ x: player.x, y: player.y }).toEqual({ x: 130, y: 170 });
   });
 
   it('does not carry a player who is not standing on the solid', () => {
