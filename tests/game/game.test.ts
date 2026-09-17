@@ -76,7 +76,7 @@ describe('Game integration', () => {
   it('warps between sections, toggles mode, and supports noclip movement', () => {
     const game = new Game('normal');
     game.warp(99);
-    expect(game.currentSection).toBe(6);
+    expect(game.currentSection).toBe(game.world.sections.length - 1);
     game.toggleMode();
     expect(game.run.mode).toBe('hard');
     expect(game.currentSection).toBe(0);

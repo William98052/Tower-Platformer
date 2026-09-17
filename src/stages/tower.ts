@@ -1,8 +1,9 @@
 import { STAGE_01_MOSS } from './stage01-moss';
+import { STAGE_02_CLOCKWORK } from './stage02-clockwork';
 import type { TowerDef } from './types';
 import { validateStage } from './world';
 
-export const TOWER: TowerDef = { stages: [STAGE_01_MOSS] };
+export const TOWER: TowerDef = { stages: [STAGE_01_MOSS, STAGE_02_CLOCKWORK] };
 
 export function validateTower(tower: TowerDef): string[] {
   const errors: string[] = [];

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
+import { STAGE_02_CLOCKWORK } from '../../src/stages/stage02-clockwork';
 import { TOWER, validateTower } from '../../src/stages/tower';
 import type { StageDef, TowerDef } from '../../src/stages/types';
 
@@ -11,8 +12,8 @@ function stage(id: number): StageDef {
 }
 
 describe('TOWER', () => {
-  it('starts with Moss Ruins as the playable stage', () => {
-    expect(TOWER.stages).toEqual([STAGE_01_MOSS]);
+  it('contains Moss Ruins followed by Clockwork Hall', () => {
+    expect(TOWER.stages).toEqual([STAGE_01_MOSS, STAGE_02_CLOCKWORK]);
     expect(validateTower(TOWER)).toEqual([]);
   });
 });

@@ -198,9 +198,13 @@ describe('AppController persistence policy', () => {
 
     expect(app.continueAvailable('normal')).toBe(true);
     expect(app.continueRun('normal')).toBe(true);
-    expect(app.game?.currentSection).toBe(2);
-    expect(app.game?.run).toMatchObject({ elapsed: 12.5, falls: 3, bestY: 3300 });
-    expect(app.game?.completedPrompts()).toEqual(['jump']);
+    const game = app.game;
+    expect(game).not.toBeNull();
+    if (!game) throw new Error('continued game missing');
+    expect(game.currentSection).toBe(2);
+    expect(game.run).toMatchObject({ elapsed: 12.5, falls: 3, bestY: game.world.height - 1600 });
+    expect(game.snapshot()).toMatchObject({ bestHeight: 1600 });
+    expect(game.completedPrompts()).toEqual(['jump']);
     expect(storage.getItem(SAVE_KEY_V1)).toBeNull();
     expect(storage.getItem(SAVE_KEY_V2)).not.toBeNull();
   });

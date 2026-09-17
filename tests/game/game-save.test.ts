@@ -12,7 +12,7 @@ import { threeStageTower } from '../helpers/tower';
 
 describe('Game run snapshots', () => {
   it('snapshots and restores a Normal run at its lit checkpoint', () => {
-    const game = new Game('normal');
+    const game = new Game('normal', STAGE_01_MOSS);
     const checkpoint = game.world.sections[2].checkpoint;
     game.run.checkpoint = { ...checkpoint, globalSection: 2, stageId: 1, localSection: 2 };
     game.run.elapsed = 12.5;
@@ -33,7 +33,7 @@ describe('Game run snapshots', () => {
   });
 
   it('snapshots and restores an exact valid Hard position and velocity', () => {
-    const game = new Game('hard');
+    const game = new Game('hard', STAGE_01_MOSS);
     game.player.x = 100;
     game.player.y = game.world.sections[0].checkpoint.y;
     game.player.vx = 50;

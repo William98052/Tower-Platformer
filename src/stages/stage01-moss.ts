@@ -1,36 +1,5 @@
-import type { EntityDef, SectionDef, SolidDef, SolidRole, StageDef } from './types';
-
-const HEIGHT = 700;
-const T = 16;
-
-const shell = (): SolidDef[] => [
-  { x: 0, y: 0, w: 24, h: HEIGHT, surface: 'normal', role: 'boundary' },
-  { x: 936, y: 0, w: 24, h: HEIGHT, surface: 'normal', role: 'boundary' },
-];
-
-const platform = (
-  x: number,
-  y: number,
-  w: number,
-  surface: SolidDef['surface'] = 'normal',
-  role: SolidRole = 'main',
-): SolidDef => ({ x, y, w, h: T, surface, role });
-
-const vine = (x: number, y: number, h: number): SolidDef =>
-  ({ x, y, w: 24, h, surface: 'vine', role: 'main' });
-
-const section = (
-  id: number,
-  checkpointX: number,
-  solids: SolidDef[],
-  entities: EntityDef[],
-): SectionDef => ({
-  id,
-  height: HEIGHT,
-  checkpoint: { x: checkpointX, y: 620 },
-  solids: [...shell(), ...solids],
-  entities,
-});
+import { platform, section, vine } from './builders';
+import type { StageDef } from './types';
 
 export const STAGE_01_MOSS: StageDef = {
   id: 1,
