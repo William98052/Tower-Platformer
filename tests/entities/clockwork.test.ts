@@ -53,6 +53,16 @@ describe('GearEntity', () => {
       delta: { x: 0, y: 0 },
     });
   });
+
+  it('reports only one-step motion on its first update at a large absolute time', () => {
+    const uninterrupted = new GearEntity(gearDef);
+    uninterrupted.update(101 - STEP, STEP);
+    uninterrupted.update(101, STEP);
+    const activated = new GearEntity(gearDef);
+    activated.update(101, STEP);
+
+    expect(activated.dynamicSolids()[0].delta).toEqual(uninterrupted.dynamicSolids()[0].delta);
+  });
 });
 
 describe('PistonEntity', () => {
@@ -82,6 +92,17 @@ describe('PistonEntity', () => {
       delta: { x: 0, y: 0 },
     });
   });
+
+  it('reports only one-step motion on its first update at a large absolute time', () => {
+    const t = 244.79;
+    const uninterrupted = new PistonEntity(pistonDef);
+    uninterrupted.update(t - STEP, STEP);
+    uninterrupted.update(t, STEP);
+    const activated = new PistonEntity(pistonDef);
+    activated.update(t, STEP);
+
+    expect(activated.dynamicSolids()[0].delta).toEqual(uninterrupted.dynamicSolids()[0].delta);
+  });
 });
 
 describe('TimedDoorEntity', () => {
@@ -104,6 +125,17 @@ describe('TimedDoorEntity', () => {
     door.reset();
     expect(door.phase).toBe('open');
     expect(door.dynamicSolids()).toEqual([]);
+  });
+
+  it('reports only one-step motion on its first update at a large absolute time', () => {
+    const t = 301.5;
+    const uninterrupted = new TimedDoorEntity(doorDef);
+    uninterrupted.update(t - STEP, STEP);
+    uninterrupted.update(t, STEP);
+    const activated = new TimedDoorEntity(doorDef);
+    activated.update(t, STEP);
+
+    expect(activated.dynamicSolids()[0].delta).toEqual(uninterrupted.dynamicSolids()[0].delta);
   });
 });
 

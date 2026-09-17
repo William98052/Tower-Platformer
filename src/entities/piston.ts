@@ -61,9 +61,10 @@ export class PistonEntity implements Entity {
 
   bounds() { return this.current; }
 
-  update(t: number, _dt: number): void {
-    this.previous = this.current;
-    const state = pistonStateAt(t, this.def.phase);
+  update(t: number, dt: number): void {
+    const currentTime = Math.max(0, t);
+    this.previous = pistonBox(this.def, pistonStateAt(Math.max(0, currentTime - dt), this.def.phase).extension);
+    const state = pistonStateAt(currentTime, this.def.phase);
     this.phase = state.phase;
     this.current = pistonBox(this.def, state.extension);
   }

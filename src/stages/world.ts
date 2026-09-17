@@ -71,18 +71,19 @@ export function validateStage(stage: StageDef): string[] {
         errors.push(`${label} mushroom launch must be between 700 and 1300`);
       }
       if (entity.type === 'gear') {
-        if (entity.radius <= 0) errors.push(`${label} gear radius must be positive`);
+        if (!Number.isFinite(entity.radius) || entity.radius <= 0) errors.push(`${label} gear radius must be positive and finite`);
         if (entity.period !== 4 && entity.period !== 6) errors.push(`${label} gear period must be 4 or 6 seconds`);
-        if (entity.phase < 0 || entity.phase >= 1) errors.push(`${label} gear phase must be in [0, 1)`);
+        if (!Number.isFinite(entity.phase) || entity.phase < 0 || entity.phase >= 1) errors.push(`${label} gear phase must be finite and in [0, 1)`);
       }
       if (entity.type === 'piston') {
-        if (entity.travel <= 0) errors.push(`${label} piston travel must be positive`);
-        if (entity.phase < 0 || entity.phase >= 1) errors.push(`${label} piston phase must be in [0, 1)`);
+        if (!Number.isFinite(entity.travel) || entity.travel <= 0) errors.push(`${label} piston travel must be positive and finite`);
+        if (!Number.isFinite(entity.phase) || entity.phase < 0 || entity.phase >= 1) errors.push(`${label} piston phase must be finite and in [0, 1)`);
       }
       if (entity.type === 'timedDoor') {
-        if (entity.phase < 0 || entity.phase >= 1) errors.push(`${label} timed door phase must be in [0, 1)`);
-        if (entity.w < MIN_SOLID_THICKNESS || entity.h < MIN_SOLID_THICKNESS) {
-          errors.push(`${label} timed door must be at least ${MIN_SOLID_THICKNESS} units on each axis`);
+        if (!Number.isFinite(entity.phase) || entity.phase < 0 || entity.phase >= 1) errors.push(`${label} timed door phase must be finite and in [0, 1)`);
+        if (!Number.isFinite(entity.w) || !Number.isFinite(entity.h)
+          || entity.w < MIN_SOLID_THICKNESS || entity.h < MIN_SOLID_THICKNESS) {
+          errors.push(`${label} timed door must be finite and at least ${MIN_SOLID_THICKNESS} units on each axis`);
         }
       }
     }

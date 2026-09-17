@@ -55,9 +55,11 @@ export class TimedDoorEntity implements Entity {
 
   bounds() { return this.current; }
 
-  update(t: number, _dt: number): void {
-    this.previous = this.current;
-    this.setState(timedDoorStateAt(t, this.def.phase));
+  update(t: number, dt: number): void {
+    const currentTime = Math.max(0, t);
+    const previousState = timedDoorStateAt(Math.max(0, currentTime - dt), this.def.phase);
+    this.previous = doorBox(this.def, previousState.closedAmount);
+    this.setState(timedDoorStateAt(currentTime, this.def.phase));
   }
 
   dynamicSolids(): readonly DynamicSolid[] {

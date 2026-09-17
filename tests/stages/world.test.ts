@@ -86,6 +86,22 @@ describe('validateStage', () => {
       expect.stringContaining('12 units'),
     ]));
   });
+
+  it.each([
+    ['gear radius NaN', { type: 'gear', x: 20, y: 20, radius: Number.NaN, period: 4, phase: 0, paddleW: 60 }, 'gear radius'],
+    ['gear radius infinity', { type: 'gear', x: 20, y: 20, radius: Number.POSITIVE_INFINITY, period: 4, phase: 0, paddleW: 60 }, 'gear radius'],
+    ['gear phase NaN', { type: 'gear', x: 20, y: 20, radius: 40, period: 4, phase: Number.NaN, paddleW: 60 }, 'gear phase'],
+    ['piston travel infinity', { type: 'piston', x: 20, y: 20, w: 60, h: 20, axis: 'x', travel: Number.POSITIVE_INFINITY, phase: 0 }, 'piston travel'],
+    ['piston phase infinity', { type: 'piston', x: 20, y: 20, w: 60, h: 20, axis: 'x', travel: 80, phase: Number.POSITIVE_INFINITY }, 'piston phase'],
+    ['door phase NaN', { type: 'timedDoor', x: 20, y: 20, w: 20, h: 80, phase: Number.NaN }, 'timed door phase'],
+    ['door width NaN', { type: 'timedDoor', x: 20, y: 20, w: Number.NaN, h: 80, phase: 0 }, 'timed door'],
+    ['door height infinity', { type: 'timedDoor', x: 20, y: 20, w: 20, h: Number.POSITIVE_INFINITY, phase: 0 }, 'timed door'],
+  ] as const)('rejects non-finite %s', (_case, entity, message) => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push(entity as unknown as EntityDef);
+
+    expect(validateStage(broken)).toContainEqual(expect.stringContaining(message));
+  });
 });
 
 describe('activeSections', () => {

@@ -34,9 +34,10 @@ export class GearEntity implements Entity {
     };
   }
 
-  update(t: number, _dt: number): void {
-    this.previous = this.current;
-    this.current = gearBoxAt(this.def, t);
+  update(t: number, dt: number): void {
+    const currentTime = Math.max(0, t);
+    this.previous = gearBoxAt(this.def, Math.max(0, currentTime - dt));
+    this.current = gearBoxAt(this.def, currentTime);
   }
 
   dynamicSolids(): readonly DynamicSolid[] {
