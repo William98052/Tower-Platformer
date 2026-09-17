@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { STEP } from '../../src/core/constants';
+import type { InputFrame } from '../../src/core/input';
+import type { Entity } from '../../src/entities/entity';
 import { createEntities } from '../../src/entities/factory';
-import { GearEntity } from '../../src/entities/gear';
+import { GearEntity, gearBoxAt } from '../../src/entities/gear';
 import { carryStandingPlayer } from '../../src/entities/interactions';
+import { PistonEntity } from '../../src/entities/piston';
 import { TimedDoorEntity } from '../../src/entities/timed-door';
 import { overlaps } from '../../src/physics/aabb';
 import { createPlayer, stepPlayer, type Player } from '../../src/physics/player';
+import { pushOutPlayer } from '../../src/physics/collision';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
 import { STAGE_02_CLOCKWORK } from '../../src/stages/stage02-clockwork';
 import type { EntityDef, SectionDef, SolidDef } from '../../src/stages/types';
@@ -74,22 +78,119 @@ function landedOn(player: Player, target: SolidDef): boolean {
     && player.x < target.x + target.w;
 }
 
-function jumpOnto(start: SolidDef, target: SolidDef, direction: -1 | 1): boolean {
-  const startX = direction < 0
+function approachX(start: SolidDef, target: SolidDef, direction: -1 | 1): number {
+  return direction < 0
     ? Math.max(start.x, Math.min(start.x + start.w - PLAYER_SIZE, target.x + target.w + 36))
     : Math.min(start.x + start.w - PLAYER_SIZE, Math.max(start.x, target.x - PLAYER_SIZE - 36));
-  const player = createPlayer(startX, start.y - PLAYER_SIZE);
-  player.onGround = true;
+}
 
-  for (let frame = 0; frame < 180; frame += 1) {
-    stepPlayer(player, input({
-      moveX: direction,
-      jump: frame < 36,
-      jumpPressed: frame === 0,
-    }), [start, target]);
-    if (landedOn(player, target)) return true;
+interface SectionSimulation {
+  entities: Entity[];
+  player: Player;
+  time: number;
+  step(frameInput: InputFrame): { carriedBy: Entity | null; safe: boolean };
+}
+
+function sectionSimulation(section: SectionDef, player: Player, startTime: number, include: (entity: Entity) => boolean = () => true): SectionSimulation {
+  const entities = createEntities(section.entities).filter(include);
+  const simulation: SectionSimulation = {
+    entities,
+    player,
+    time: startTime,
+    step(frameInput) {
+      simulation.time += STEP;
+      for (const entity of entities) entity.update(simulation.time, STEP);
+      const moving = entities.flatMap((entity) => entity.dynamicSolids().map((solid) => ({ entity, solid })));
+      const solids = [...section.solids, ...moving.map(({ solid }) => solid.box)];
+
+      let carriedBy: Entity | null = null;
+      for (const { entity, solid } of moving) {
+        if (!carryStandingPlayer(player, solid, solids)) continue;
+        carriedBy = entity;
+        break;
+      }
+      stepPlayer(player, frameInput, solids);
+
+      for (const { solid } of moving) {
+        if (!pushOutPlayer(player, solid.box, solids.filter((blocker) => blocker !== solid.box))) {
+          return { carriedBy, safe: false };
+        }
+      }
+      for (const entity of entities) {
+        const contact = entity.collide(player);
+        if (contact.kind !== 'push') continue;
+        const shoved = { x: player.x + contact.dx, y: player.y + contact.dy, w: player.w, h: player.h };
+        if (!solids.some((solid) => overlaps(shoved, solid))) {
+          player.x = shoved.x;
+          player.y = shoved.y;
+        }
+        if (!pushOutPlayer(player, entity.bounds(), solids)) return { carriedBy, safe: false };
+      }
+      return { carriedBy, safe: true };
+    },
+  };
+  return simulation;
+}
+
+interface GearTransfer {
+  section: number;
+  gear: number;
+  lowerY: number;
+  upperY: number;
+  board: -1 | 1;
+  dismount: -1 | 1;
+  boardFrames?: number;
+  boardLead?: number;
+  dismountDuration?: number;
+  prepareDismount?: boolean;
+  prepareLead?: number;
+}
+
+function simulateGearTransfer(transfer: GearTransfer): { boarded: boolean; carryFrames: number; landed: boolean; safe: boolean; final: { x: number; y: number; onGround: boolean } } {
+  const section = STAGE_02_CLOCKWORK.sections[transfer.section];
+  const def = section.entities.filter((entity) => entity.type === 'gear')[transfer.gear];
+  const lower = routePlatforms(section).find((solid) => solid.role === 'main' && solid.y === transfer.lowerY);
+  const upper = routePlatforms(section).find((solid) => solid.role === 'main' && solid.y === transfer.upperY);
+  if (!def || !lower || !upper) throw new Error(`gear transfer fixture ${transfer.section}:${transfer.gear} missing`);
+
+  const lowBase = ((0.5 - def.phase + 1) % 1) * def.period;
+  const lowTime = lowBase === 0 ? def.period : lowBase;
+  const highTime = lowTime + def.period / 2;
+  const startTime = lowTime - (transfer.boardLead ?? 0.45);
+  const boardingApproach = gearBoxAt(def, startTime) as SolidDef;
+  const player = createPlayer(approachX(lower, boardingApproach, transfer.board), lower.y - PLAYER_SIZE);
+  player.onGround = true;
+  const simulation = sectionSimulation(section, player, startTime);
+  const gear = simulation.entities.filter((entity): entity is GearEntity => entity instanceof GearEntity)[transfer.gear];
+
+  let boarded = false;
+  let carryFrames = 0;
+  let dismountAt: number | null = null;
+  let safe = true;
+  const endTime = highTime + 1.25;
+  for (let frame = 0; simulation.time < endTime; frame += 1) {
+    if (boarded && dismountAt === null && simulation.time >= highTime - 0.5) dismountAt = simulation.time;
+    const dismountElapsed = dismountAt === null ? -1 : simulation.time - dismountAt;
+    const dismounting = dismountElapsed >= 0 && dismountElapsed < (transfer.dismountDuration ?? 1);
+    const positioning = transfer.prepareDismount && boarded && dismountAt === null
+      && simulation.time >= highTime - (transfer.prepareLead ?? 0.8);
+    const frameInput = !boarded
+      ? input({ moveX: frame < (transfer.boardFrames ?? 42) ? transfer.board : 0, jump: frame < 42, jumpPressed: frame === 0 })
+      : dismounting
+        ? input({ moveX: transfer.dismount, jump: dismountElapsed < 0.25, jumpPressed: dismountElapsed < STEP })
+        : positioning
+          ? input({ moveX: transfer.dismount })
+          : input();
+    const result = simulation.step(frameInput);
+    safe &&= result.safe;
+    if (result.carriedBy === gear) carryFrames += 1;
+    const box = gear.dynamicSolids()[0].box as SolidDef;
+    if (!boarded && landedOn(player, box)) boarded = true;
+    if (boarded && landedOn(player, upper)) {
+      return { boarded, carryFrames, landed: true, safe, final: { x: player.x, y: player.y, onGround: player.onGround } };
+    }
   }
-  return false;
+  return { boarded, carryFrames, landed: false, safe, final: { x: player.x, y: player.y, onGround: player.onGround } };
 }
 
 describe('STAGE_02_CLOCKWORK', () => {
@@ -217,56 +318,116 @@ describe('STAGE_02_CLOCKWORK', () => {
     }
   });
 
-  it('makes both Gear Gallery transfers boardable, carryable, and dismountable with real gear solids', () => {
-    const gallery = STAGE_02_CLOCKWORK.sections[2];
-    const route = routePlatforms(gallery).filter((solid) => solid.role === 'main').sort((a, b) => b.y - a.y);
-    const gearDefs = gallery.entities.filter((entity) => entity.type === 'gear');
-    expect(route).toHaveLength(3);
-    expect(gearDefs).toHaveLength(2);
-
-    for (let index = 0; index < gearDefs.length; index += 1) {
-      const def = gearDefs[index];
-      const gear = new GearEntity(def);
-      const lowTime = ((0.5 - def.phase + 1) % 1) * def.period;
-      const highTime = ((1 - def.phase) % 1) * def.period;
-      gear.update(lowTime, STEP);
-      const low = gear.dynamicSolids()[0].box as SolidDef;
-      expect(jumpOnto(route[index], low, index === 0 ? -1 : 1), `gear ${index + 1} boarding`).toBe(true);
-
-      const rider = createPlayer(low.x + 20, low.y - PLAYER_SIZE);
-      for (let frame = 1; frame <= 30; frame += 1) {
-        gear.update(lowTime + frame * STEP, STEP);
-        expect(carryStandingPlayer(rider, gear.dynamicSolids()[0]), `gear ${index + 1} carry frame ${frame}`).toBe(true);
-      }
-
-      gear.update(highTime, STEP);
-      const high = gear.dynamicSolids()[0].box as SolidDef;
-      expect(jumpOnto(high, route[index + 1], index === 0 ? -1 : 1), `gear ${index + 1} dismount`).toBe(true);
-    }
-  });
-
-  it('keeps every later gear transfer boardable and gives its rider a clear dismount side', () => {
+  it('continuously boards, carries, and dismounts every required gear against full section geometry', () => {
     const transfers = [
-      { section: 5, gear: 0, lowerY: 535, upperY: 385, board: -1 as const, dismount: -1 as const },
-      { section: 5, gear: 1, lowerY: 385, upperY: 235, board: 1 as const, dismount: 1 as const },
-      { section: 6, gear: 0, lowerY: 535, upperY: 330, board: -1 as const, dismount: 1 as const },
+      { section: 2, gear: 0, lowerY: 660, upperY: 360, board: -1 as const, dismount: -1 as const },
+      { section: 2, gear: 1, lowerY: 360, upperY: 70, board: 1 as const, dismount: 1 as const, boardFrames: 24 },
+      { section: 5, gear: 0, lowerY: 535, upperY: 377, board: -1 as const, dismount: -1 as const },
+      { section: 5, gear: 1, lowerY: 377, upperY: 219, board: 1 as const, dismount: 1 as const },
+      { section: 6, gear: 0, lowerY: 535, upperY: 330, board: -1 as const, dismount: 1 as const, boardFrames: 60, boardLead: 0.15, dismountDuration: 0.45, prepareDismount: true, prepareLead: 0.525 },
     ];
 
     for (const transfer of transfers) {
-      const section = STAGE_02_CLOCKWORK.sections[transfer.section];
-      const def = section.entities.filter((entity) => entity.type === 'gear')[transfer.gear];
-      const lower = routePlatforms(section).find((solid) => solid.role === 'main' && solid.y === transfer.lowerY);
-      const upper = routePlatforms(section).find((solid) => solid.role === 'main' && solid.y === transfer.upperY);
-      if (!def || !lower || !upper) throw new Error(`gear transfer fixture ${transfer.section}:${transfer.gear} missing`);
-
-      const gear = new GearEntity(def);
-      const lowTime = ((0.5 - def.phase + 1) % 1) * def.period;
-      const highTime = ((1 - def.phase) % 1) * def.period;
-      gear.update(lowTime, STEP);
-      expect(jumpOnto(lower, gear.dynamicSolids()[0].box as SolidDef, transfer.board), `section ${transfer.section} gear ${transfer.gear} boarding`).toBe(true);
-      gear.update(highTime, STEP);
-      expect(jumpOnto(gear.dynamicSolids()[0].box as SolidDef, upper, transfer.dismount), `section ${transfer.section} gear ${transfer.gear} dismount`).toBe(true);
+      const result = simulateGearTransfer(transfer);
+      expect(result.safe, `section ${transfer.section} gear ${transfer.gear} safe`).toBe(true);
+      expect(result.boarded, `section ${transfer.section} gear ${transfer.gear} boarded ${JSON.stringify(result.final)}`).toBe(true);
+      expect(result.carryFrames, `section ${transfer.section} gear ${transfer.gear} carry`).toBeGreaterThan(60);
+      expect(result.landed, `section ${transfer.section} gear ${transfer.gear} dismount ${JSON.stringify(result.final)}`).toBe(true);
     }
+  });
+
+  it('cannot dry-jump the first Machine Climb gear gate with production movement', () => {
+    const climb = STAGE_02_CLOCKWORK.sections[5];
+    const conveyorFloor = routePlatforms(climb).find((solid) => solid.y === 535);
+    const firstLanding = routePlatforms(climb).find((solid) => solid.y === 377);
+    if (!conveyorFloor || !firstLanding) throw new Error('machine-climb dry-jump fixture missing');
+
+    const player = createPlayer(conveyorFloor.x, conveyorFloor.y - PLAYER_SIZE);
+    player.onGround = true;
+    const simulation = sectionSimulation(climb, player, 0, (entity) => !(entity instanceof GearEntity));
+    let landed = false;
+    for (let frame = 0; frame < 180; frame += 1) {
+      simulation.step(input({
+        moveX: frame < 90 ? -1 : 0,
+        jump: frame < 48,
+        jumpPressed: frame === 0,
+      }));
+      landed ||= landedOn(player, firstLanding);
+    }
+    expect(landed).toBe(false);
+  });
+
+  it('continuously boards and rides the Machine Climb piston to its exit', () => {
+    const climb = STAGE_02_CLOCKWORK.sections[5];
+    const lower = routePlatforms(climb).find((solid) => solid.y === 219);
+    const exit = routePlatforms(climb).find((solid) => solid.y === 60 && solid.x === 640);
+    if (!lower || !exit) throw new Error('machine-climb piston fixture missing');
+
+    const player = createPlayer(510, lower.y - PLAYER_SIZE);
+    player.onGround = true;
+    const simulation = sectionSimulation(climb, player, 1.3);
+    const lift = simulation.entities.find((entity): entity is PistonEntity => entity instanceof PistonEntity);
+    if (!lift) throw new Error('machine-climb piston missing');
+
+    let boarded = false;
+    let carryFrames = 0;
+    let landed = false;
+    let safe = true;
+    for (let frame = 0; frame < 220; frame += 1) {
+      const onLift = lift.dynamicSolids().some((solid) => landedOn(player, solid.box as SolidDef));
+      boarded ||= onLift;
+      const readyToExit = boarded && simulation.time >= 1.84;
+      const result = simulation.step(!boarded
+        ? input({ moveX: 1, jump: frame < 30, jumpPressed: frame === 0 })
+        : readyToExit
+          ? input({ moveX: 1, jump: simulation.time < 2.09, jumpPressed: simulation.time < 1.84 + STEP })
+          : input());
+      safe &&= result.safe;
+      if (result.carriedBy === lift) carryFrames += 1;
+      if (landedOn(player, exit)) {
+        landed = true;
+        break;
+      }
+    }
+    expect(safe).toBe(true);
+    expect(boarded).toBe(true);
+    expect(carryFrames).toBeGreaterThan(20);
+    expect(landed, JSON.stringify({ x: player.x, y: player.y, onGround: player.onGround })).toBe(true);
+  });
+
+  it('continuously rides the Finale bridge piston and passes its piston-door gate', () => {
+    const finale = STAGE_02_CLOCKWORK.sections[6];
+    const left = routePlatforms(finale).find((solid) => solid.y === 330 && solid.x === 200);
+    const far = routePlatforms(finale).find((solid) => solid.y === 330 && solid.x === 776);
+    if (!left || !far) throw new Error('finale piston fixture missing');
+
+    const player = createPlayer(250, left.y - PLAYER_SIZE);
+    player.onGround = true;
+    const simulation = sectionSimulation(finale, player, 0.8);
+    const pistons = simulation.entities.filter((entity): entity is PistonEntity => entity instanceof PistonEntity);
+    const bridge = pistons.find((entity) => entity.def.axis === 'x');
+    if (!bridge) throw new Error('finale bridge piston missing');
+
+    let boarded = false;
+    let carryFrames = 0;
+    let crossed = false;
+    let safe = true;
+    for (let frame = 0; frame < 420; frame += 1) {
+      const onBridge = bridge.dynamicSolids().some((solid) => landedOn(player, solid.box as SolidDef));
+      boarded ||= onBridge;
+      const crossing = simulation.time >= 1.72;
+      const result = simulation.step(input({ moveX: crossing || !boarded ? 1 : 0 }));
+      safe &&= result.safe;
+      if (result.carriedBy === bridge) carryFrames += 1;
+      if (landedOn(player, far)) {
+        crossed = true;
+        break;
+      }
+    }
+    expect(safe).toBe(true);
+    expect(boarded).toBe(true);
+    expect(carryFrames).toBeGreaterThan(8);
+    expect(crossed, JSON.stringify({ x: player.x, y: player.y, onGround: player.onGround })).toBe(true);
   });
 
   it('keeps every moving path inside the section and the 24–936 tower shell', () => {
@@ -334,12 +495,12 @@ describe('STAGE_02_CLOCKWORK', () => {
     const climb = STAGE_02_CLOCKWORK.sections[5];
     const climbLevels = [...new Set(routePlatforms(climb).filter((solid) => solid.role === 'main').map((solid) => solid.y))]
       .sort((a, b) => b - a);
-    expect(climbLevels).toEqual([660, 535, 385, 235, 70]);
-    expect(climbLevels.slice(1).map((level, index) => climbLevels[index] - level)).toEqual([125, 150, 150, 165]);
+    expect(climbLevels).toEqual([660, 535, 377, 219, 60]);
+    expect(climbLevels.slice(1).map((level, index) => climbLevels[index] - level)).toEqual([125, 158, 158, 159]);
     const lift = climb.entities.find((entity) => entity.type === 'piston');
-    expect(lift).toMatchObject({ type: 'piston', axis: 'y', y: 86, travel: 125 });
+    expect(lift).toMatchObject({ type: 'piston', axis: 'y', y: 76, travel: 119 });
     if (!lift || lift.type !== 'piston') throw new Error('machine-climb piston missing');
-    const topRow = routePlatforms(climb).filter((solid) => solid.y === 70).sort((a, b) => a.x - b.x);
+    const topRow = routePlatforms(climb).filter((solid) => solid.y === 60).sort((a, b) => a.x - b.x);
     expect(topRow.map((solid) => [solid.x, solid.x + solid.w])).toEqual([[300, lift.x], [lift.x + lift.w, 920]]);
 
     const finale = STAGE_02_CLOCKWORK.sections[6];
@@ -371,7 +532,7 @@ describe('STAGE_02_CLOCKWORK', () => {
       const route = routePlatforms(section).filter((solid) => solid.role === 'main');
       const highestY = Math.min(...route.map((solid) => solid.y));
       const exits = route.filter((solid) => solid.y === highestY);
-      expect(highestY, `section ${section.id} exit height`).toBe(70);
+      expect(highestY, `section ${section.id} exit height`).toBe(section.id === 5 ? 60 : 70);
 
       if (index === STAGE_02_CLOCKWORK.sections.length - 1) {
         expect(exits.some((solid) => solid.w >= 280), 'final stage handoff').toBe(true);

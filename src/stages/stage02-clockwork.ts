@@ -48,7 +48,7 @@ export const STAGE_02_CLOCKWORK: StageDef = {
       platform(570, 70, 330),
     ], [
       { type: 'gear', x: 520, y: 420, radius: 90, period: 6, phase: 0, paddleW: 140 },
-      { type: 'gear', x: 420, y: 120, radius: 90, period: 6, phase: 0.5, paddleW: 140 },
+      { type: 'gear', x: 420, y: 120, radius: 90, period: 6, phase: 0, paddleW: 140 },
     ]),
 
     // 4. The first piston sweeps a floor toward a dedicated catch; the second descends from overhead.
@@ -89,28 +89,28 @@ export const STAGE_02_CLOCKWORK: StageDef = {
     section(5, 540, [
       platform(500, 660, 360),
       conveyor(320, 535, 360, 'conveyorRight', 160),
-      platform(24, 385, 286),
-      platform(480, 235, 320),
-      platform(300, 70, 260),
-      platform(640, 70, 280),
+      platform(24, 377, 286),
+      platform(480, 219, 320),
+      platform(300, 60, 260),
+      platform(640, 60, 280),
     ], [
-      { type: 'gear', x: 330, y: 430, radius: 35, period: 4, phase: 0, paddleW: 120 },
-      { type: 'gear', x: 350, y: 275, radius: 35, period: 4, phase: 0.5, paddleW: 110 },
-      { type: 'piston', x: 560, y: 86, w: 80, h: 24, axis: 'y', travel: 125, phase: 0.25 },
+      { type: 'gear', x: 330, y: 421, radius: 35, period: 4, phase: 0, paddleW: 120 },
+      { type: 'gear', x: 350, y: 263, radius: 35, period: 4, phase: 0, paddleW: 110 },
+      { type: 'piston', x: 560, y: 76, w: 80, h: 24, axis: 'y', travel: 119, phase: 0.25 },
     ]),
 
     // 7. The finale stays linear: fast belt, large gear, two telegraphed shoves, then one gate.
     section(6, 540, [
       platform(500, 660, 380),
       conveyor(300, 535, 400, 'conveyorRight', 160),
-      platform(180, 330, 120),
+      platform(200, 330, 100),
       platform(581, 330, 171),
       platform(776, 330, 160),
       platform(24, 205, 728),
       platform(776, 205, 104),
       platform(560, 70, 340),
     ], [
-      { type: 'gear', x: 100, y: 370, radius: 65, period: 4, phase: 0, paddleW: 60 },
+      { type: 'gear', x: 140, y: 380, radius: 65, period: 4, phase: 0, paddleW: 60 },
       { type: 'piston', x: 300, y: 330, w: 80, h: 24, axis: 'x', travel: 201, phase: 0 },
       { type: 'piston', x: 630, y: 221, w: 70, h: 81, axis: 'y', travel: 28, phase: 0.5 },
       { type: 'timedDoor', x: 752, y: 246, w: 24, h: 84, phase: 0.25 },
