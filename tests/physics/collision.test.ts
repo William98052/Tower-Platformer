@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { overlaps } from '../../src/physics/aabb';
-import { isTouching, moveAndCollide } from '../../src/physics/collision';
+import { isTouching, moveAndCollide, pushOutPlayer } from '../../src/physics/collision';
+import { createPlayer } from '../../src/physics/player';
 
 const box = { x: 0, y: 0, w: 10, h: 10 };
 
@@ -135,5 +136,39 @@ describe('moveAndCollide corner correction', () => {
     const ledge = { x: -100, y: 0, w: 104, h: 10 }; // corner on the left
     // Moving right by 1: box spans 1..11, overlap 3; nudge right by 3 clears it.
     expect(moveAndCollide(player, 1, -15, [ledge], 6)).toEqual({ x: 4, y: 5, hitX: false, hitY: false });
+  });
+});
+
+describe('pushOutPlayer', () => {
+  const obstacle = { x: 100, y: 100, w: 40, h: 40 };
+
+  it('chooses the smallest clear translation out of an overlapping solid', () => {
+    const player = createPlayer(95, 108);
+
+    expect(pushOutPlayer(player, obstacle, [])).toBe(true);
+    expect({ x: player.x, y: player.y }).toEqual({ x: 72, y: 108 });
+    expect(overlaps(player, obstacle)).toBe(false);
+  });
+
+  it('tries the next-smallest translation when the shortest exit is blocked', () => {
+    const player = createPlayer(95, 108);
+    const leftBlocker = { x: 60, y: 90, w: 35, h: 70 };
+
+    expect(pushOutPlayer(player, obstacle, [leftBlocker])).toBe(true);
+    expect({ x: player.x, y: player.y }).toEqual({ x: 95, y: 140 });
+    expect([obstacle, leftBlocker].some((solid) => overlaps(player, solid))).toBe(false);
+  });
+
+  it('reports failure without moving the player when every exit is blocked', () => {
+    const player = createPlayer(106, 106);
+    const blockers = [
+      { x: 70, y: 90, w: 36, h: 60 },
+      { x: 134, y: 90, w: 36, h: 60 },
+      { x: 90, y: 70, w: 60, h: 36 },
+      { x: 90, y: 134, w: 60, h: 36 },
+    ];
+
+    expect(pushOutPlayer(player, obstacle, blockers)).toBe(false);
+    expect({ x: player.x, y: player.y }).toEqual({ x: 106, y: 106 });
   });
 });

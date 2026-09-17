@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_INPUT } from '../../src/core/input';
+import type { DynamicSolid, Entity, EntityContact, FieldEffect } from '../../src/entities/entity';
 import { Game } from '../../src/game/game';
+import type { Player } from '../../src/physics/player';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
+import type { StageDef } from '../../src/stages/types';
 import { input } from '../helpers/input';
 import { threeStageTower } from '../helpers/tower';
 
@@ -140,5 +143,111 @@ describe('cross-stage gameplay', () => {
     const cameraY = game.world.sections[7].top;
     expect(game.activeSectionIds(cameraY)).toEqual([6, 7, 8]);
     expect(game.activeEntities(cameraY)).toHaveLength(3);
+  });
+});
+
+const interactionStage: StageDef = {
+  id: 99,
+  name: 'Interaction Test',
+  theme: STAGE_01_MOSS.theme,
+  sections: [{ id: 0, height: 600, checkpoint: { x: 300, y: 500 }, solids: [], entities: [] }],
+};
+
+function installEntity(game: Game, entity: Entity): void {
+  (game as unknown as { entitiesBySection: Entity[][] }).entitiesBySection[0] = [entity];
+}
+
+function testEntity(options: {
+  bounds?: () => { x: number; y: number; w: number; h: number };
+  update?: (t: number, dt: number) => void;
+  dynamicSolids?: () => readonly DynamicSolid[];
+  field?: (player: Player) => FieldEffect | null;
+  collide?: (player: Player) => EntityContact;
+}): Entity {
+  return {
+    bounds: options.bounds ?? (() => ({ x: 0, y: 0, w: 0, h: 0 })),
+    update: options.update ?? (() => {}),
+    dynamicSolids: options.dynamicSolids ?? (() => []),
+    field: options.field ?? (() => null),
+    collide: options.collide ?? (() => ({ kind: 'none' })),
+    draw: () => {},
+    reset: () => {},
+  };
+}
+
+describe('Game entity interaction pipeline', () => {
+  it('updates a dynamic solid before carrying and stepping a standing player', () => {
+    const game = new Game('hard', interactionStage);
+    let delta = { x: 0, y: 0 };
+    installEntity(game, testEntity({
+      update: () => { delta = { x: 3, y: 0 }; },
+      dynamicSolids: () => [{ box: { x: 100, y: 200, w: 120, h: 20 }, delta }],
+    }));
+    Object.assign(game.player, { x: 130, y: 172, onGround: true });
+
+    game.step(EMPTY_INPUT, 0);
+
+    expect(game.player.x).toBe(133);
+    expect(game.player.y).toBe(172);
+  });
+
+  it('includes active dynamic boxes in real player collision resolution', () => {
+    const game = new Game('hard', interactionStage);
+    installEntity(game, testEntity({
+      bounds: () => ({ x: 160, y: 100, w: 20, h: 200 }),
+      dynamicSolids: () => [{ box: { x: 160, y: 100, w: 20, h: 200 }, delta: { x: 0, y: 0 } }],
+    }));
+    Object.assign(game.player, { x: 130, y: 120, vx: 600, vy: 0, onGround: false });
+
+    game.step(input({ moveX: 1 }), 0);
+
+    expect(game.player.x).toBe(132);
+  });
+
+  it('routes an impossible push-out through Normal hazard respawn handling', () => {
+    const stage: StageDef = {
+      ...interactionStage,
+      sections: [{
+        ...interactionStage.sections[0],
+        solids: [
+          { x: 70, y: 90, w: 36, h: 60, surface: 'normal' },
+          { x: 134, y: 90, w: 36, h: 60, surface: 'normal' },
+          { x: 90, y: 70, w: 60, h: 36, surface: 'normal' },
+          { x: 90, y: 134, w: 60, h: 36, surface: 'normal' },
+        ],
+      }],
+    };
+    const game = new Game('normal', stage);
+    const obstacle = { x: 100, y: 100, w: 40, h: 40 };
+    installEntity(game, testEntity({
+      bounds: () => obstacle,
+      collide: () => ({ kind: 'push', dx: 4, dy: 0 }),
+    }));
+    Object.assign(game.player, { x: 106, y: 106, onGround: false });
+
+    const result = game.step(EMPTY_INPUT, 0);
+
+    expect(result.respawned).toBe(true);
+    expect(game.run.falls).toBe(1);
+    expect({ x: game.player.x, y: game.player.y }).toEqual(stage.sections[0].checkpoint);
+  });
+
+  it('resolves dynamic-solid penetration before entity contacts', () => {
+    const game = new Game('hard', interactionStage);
+    const obstacle = { x: 100, y: 100, w: 40, h: 40 };
+    let contactedAt: { x: number; y: number } | null = null;
+    installEntity(game, testEntity({
+      bounds: () => obstacle,
+      dynamicSolids: () => [{ box: obstacle, delta: { x: 0, y: 0 } }],
+      collide: (player) => {
+        contactedAt = { x: player.x, y: player.y };
+        return { kind: 'none' };
+      },
+    }));
+    Object.assign(game.player, { x: 106, y: 106, dashTimer: 1, vx: 0, vy: 0, onGround: false });
+
+    game.step(EMPTY_INPUT, 0);
+
+    expect(contactedAt).toEqual({ x: 72, y: 106 });
   });
 });

@@ -2,10 +2,12 @@ import { STEP, VIEW_H } from '../core/constants';
 import { EMPTY_INPUT, type InputFrame } from '../core/input';
 import { createEntities } from '../entities/factory';
 import type { Entity } from '../entities/entity';
+import { carryStandingPlayer, resolveFieldEffects } from '../entities/interactions';
 import { activateCheckpoint, createRunState, hitHazard, recordLanding, shouldRespawnForFall, stepRunTimers, trackHeight } from '../modes/rules';
 import type { Mode, RunState } from '../modes/run-state';
 import { createPlayer, type Player, type StepEvents, stepPlayer } from '../physics/player';
 import { overlaps } from '../physics/aabb';
+import { pushOutPlayer } from '../physics/collision';
 import { TOWER } from '../stages/tower';
 import type { PromptId, StageDef, TowerDef, World, WorldSection } from '../stages/types';
 import { activeSections, buildWorld, stageAtSection } from '../stages/world';
@@ -53,6 +55,13 @@ export class Game {
     this.banner.update(STEP);
     this.time += STEP;
 
+    const sectionIndexes = this.activeSectionIndexes(cameraY);
+    const sections = sectionIndexes.map((index) => this.world.sections[index]);
+    const entities = sectionIndexes.flatMap((index) => this.entitiesBySection[index]);
+    for (const entity of entities) entity.update(this.time, STEP);
+    const dynamicSolids = entities.flatMap((entity) => [...entity.dynamicSolids()]);
+    const solids = [...sections.flatMap((section) => section.solids), ...dynamicSolids.map((solid) => solid.box)];
+
     let events = NO_EVENTS;
     if (this.noclip) {
       this.player.x = clamp(this.player.x + input.moveX * 600 * STEP, 24, this.world.width - 24 - this.player.w);
@@ -61,10 +70,52 @@ export class Game {
       this.player.vy = input.moveY * 600;
       this.player.onGround = false;
     } else {
-      const sections = this.activeSections(cameraY);
-      const solids = sections.flatMap((section) => section.solids);
-      events = stepPlayer(this.player, this.run.stun > 0 ? EMPTY_INPUT : input, solids);
+      for (const solid of dynamicSolids) {
+        if (carryStandingPlayer(this.player, solid, solids)) break;
+      }
+      const environment = resolveFieldEffects(
+        entities.map((entity) => entity.field(this.player)).filter((field) => field !== null),
+      );
+      events = stepPlayer(this.player, this.run.stun > 0 ? EMPTY_INPUT : input, solids, STEP, environment);
     }
+
+    let respawned = false;
+    for (const solid of dynamicSolids) {
+      if (pushOutPlayer(this.player, solid.box, solids.filter((blocker) => blocker !== solid.box))) continue;
+      respawned = this.hitHazard(solid.box.x + solid.box.w / 2);
+      if (respawned) break;
+    }
+
+    for (const entity of respawned ? [] : entities) {
+      const result = entity.collide(this.player);
+      if (result.kind === 'launch') {
+        this.player.vy = result.velocityY;
+        this.player.onGround = false;
+      } else if (result.kind === 'prompt') {
+        showPrompt(this.prompts, result.id);
+      } else if (result.kind === 'push') {
+        const shoved = {
+          x: this.player.x + result.dx,
+          y: this.player.y + result.dy,
+          w: this.player.w,
+          h: this.player.h,
+        };
+        if (!solids.some((solid) => overlaps(shoved, solid))) {
+          this.player.x = shoved.x;
+          this.player.y = shoved.y;
+        }
+        if (!pushOutPlayer(this.player, entity.bounds(), solids)) {
+          respawned = this.hitHazard(entity.bounds().x + entity.bounds().w / 2);
+          if (respawned) break;
+        }
+      } else if (result.kind === 'hazard') {
+        respawned = this.hitHazard(result.centerX);
+        if (respawned) break;
+      }
+    }
+    const promptCompleted = completePromptsFromEvents(this.prompts, events);
+
+    if (respawned) return { ...events, respawned: true, checkpointActivated: false, promptCompleted };
 
     this.enterSection(this.sectionAt(this.player.y + this.player.h / 2));
     trackHeight(this.run, this.player.y);
@@ -75,20 +126,6 @@ export class Game {
     if (touchesCheckpoint(this.player, section)) {
       checkpointActivated = activateCheckpoint(this.run, section.checkpoint, this.currentSection, section.stageId, section.localSection);
     }
-
-    for (const index of this.activeSectionIndexes(cameraY)) {
-      for (const entity of this.entitiesBySection[index]) {
-        entity.update(this.time, STEP);
-        const result = entity.collide(this.player);
-        if (result.kind === 'launch') {
-          this.player.vy = result.velocityY;
-          this.player.onGround = false;
-        } else if (result.kind === 'prompt') {
-          showPrompt(this.prompts, result.id);
-        }
-      }
-    }
-    const promptCompleted = completePromptsFromEvents(this.prompts, events);
 
     if (shouldRespawnForFall(this.run, this.player.y)) {
       this.respawn();

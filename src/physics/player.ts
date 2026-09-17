@@ -1,5 +1,6 @@
 import * as C from '../core/constants';
 import type { InputFrame } from '../core/input';
+import type { FieldEffect } from '../entities/entity';
 import type { AABB } from './aabb';
 import { collisionSolidsFor, type CollisionSolid, isTouching, moveAndCollide, surfaceFloorY } from './collision';
 
@@ -67,7 +68,13 @@ export function aimDirection(moveX: number, moveY: number, facing: -1 | 1): { x:
   return { x: moveX / length, y: moveY / length };
 }
 
-export function stepPlayer(p: Player, input: InputFrame, solids: readonly CollisionSolid[], dt = C.STEP): StepEvents {
+export function stepPlayer(
+  p: Player,
+  input: InputFrame,
+  solids: readonly CollisionSolid[],
+  dt = C.STEP,
+  _environment: FieldEffect | null = null,
+): StepEvents {
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
   tickTimers(p, input, dt);
   if (tryStartDash(p, input, events) || p.dashTimer > 0) {

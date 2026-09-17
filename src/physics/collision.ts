@@ -84,6 +84,31 @@ export function isTouching(box: AABB, offsetX: number, offsetY: number, solids: 
   return solids.some((s) => overlaps(probe, s));
 }
 
+/** Moves an embedded player by the shortest cardinal translation that clears all solids. */
+export function pushOutPlayer(player: AABB, obstacle: AABB, blockers: readonly AABB[]): boolean {
+  if (!overlaps(player, obstacle)) return true;
+  const translations = [
+    { dx: obstacle.x - (player.x + player.w), dy: 0 },
+    { dx: obstacle.x + obstacle.w - player.x, dy: 0 },
+    { dx: 0, dy: obstacle.y - (player.y + player.h) },
+    { dx: 0, dy: obstacle.y + obstacle.h - player.y },
+  ].sort((a, b) => Math.abs(a.dx) + Math.abs(a.dy) - Math.abs(b.dx) - Math.abs(b.dy));
+
+  for (const translation of translations) {
+    const candidate = {
+      x: player.x + translation.dx,
+      y: player.y + translation.dy,
+      w: player.w,
+      h: player.h,
+    };
+    if (overlaps(candidate, obstacle) || blockers.some((solid) => overlaps(candidate, solid))) continue;
+    player.x = candidate.x;
+    player.y = candidate.y;
+    return true;
+  }
+  return false;
+}
+
 /** Selects solids that block this movement. One-way platforms only block a fall from above; slopes resolve separately. */
 export function collisionSolidsFor(
   box: AABB,

@@ -1,7 +1,7 @@
 import { overlaps } from '../physics/aabb';
 import type { Player } from '../physics/player';
 import type { EntityDef } from '../stages/types';
-import type { CollisionResult, Entity } from './entity';
+import type { DynamicSolid, Entity, EntityContact, FieldEffect } from './entity';
 import { MushroomEntity } from './mushroom';
 
 class PromptEntity implements Entity {
@@ -12,9 +12,11 @@ class PromptEntity implements Entity {
   }
 
   update(): void {}
+  dynamicSolids(): readonly DynamicSolid[] { return []; }
+  field(): FieldEffect | null { return null; }
   draw(): void {}
 
-  collide(player: Player): CollisionResult {
+  collide(player: Player): EntityContact {
     return overlaps(player, this.bounds()) ? { kind: 'prompt', id: this.def.prompt } : { kind: 'none' };
   }
 

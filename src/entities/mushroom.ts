@@ -1,7 +1,7 @@
 import { overlaps } from '../physics/aabb';
 import type { Player } from '../physics/player';
 import type { EntityDef } from '../stages/types';
-import type { CollisionResult, Entity } from './entity';
+import type { DynamicSolid, Entity, EntityContact, FieldEffect } from './entity';
 
 type MushroomDef = Extract<EntityDef, { type: 'mushroom' }>;
 
@@ -20,6 +20,9 @@ export class MushroomEntity implements Entity {
     this.compression = Math.max(0, this.compression - dt * 4);
   }
 
+  dynamicSolids(): readonly DynamicSolid[] { return []; }
+  field(): FieldEffect | null { return null; }
+
   draw(ctx: CanvasRenderingContext2D): void {
     const bob = Math.sin(this.time * 2 + this.def.x * 0.01) * 1.5;
     const squash = 1 - this.compression * 0.35;
@@ -35,7 +38,7 @@ export class MushroomEntity implements Entity {
     ctx.restore();
   }
 
-  collide(player: Player): CollisionResult {
+  collide(player: Player): EntityContact {
     if (player.vy <= 0 || player.y >= this.def.y || !overlaps(player, this.bounds())) return { kind: 'none' };
     this.compression = 1;
     return { kind: 'launch', velocityY: -this.def.launch };
