@@ -19,6 +19,8 @@ import { input } from '../helpers/input';
 const PLAYER_SIZE = 28;
 const SHELL_LEFT = 24;
 const SHELL_RIGHT = 936;
+const MEASURED_ORDINARY_JUMP_APEX = 159.5;
+const REQUIRED_GATE_CLEARANCE = 20;
 
 function routePlatforms(section: SectionDef): SolidDef[] {
   return section.solids.filter((solid) => solid.role !== 'boundary');
@@ -144,6 +146,106 @@ interface GearTransfer {
   dismountDuration?: number;
   prepareDismount?: boolean;
   prepareLead?: number;
+}
+
+interface DryJumpRoute {
+  startX: number;
+  runDirection: -1 | 1;
+  runFrames: number;
+  jumpDelay: number;
+  timing: 'ground' | 'coyote';
+  steerDirection: -1 | 0 | 1;
+  steerDelay: number;
+  jumpHold: number;
+}
+
+function findDryJumpRoute(section: SectionDef, lower: SolidDef, target: SolidDef): DryJumpRoute | null {
+  const startXs = Array.from({ length: 9 }, (_, index) => (
+    lower.x + (lower.w - PLAYER_SIZE) * index / 8
+  ));
+  const runDirections = [-1, 1] as const;
+  const runFrames = [0, 12, 24, 36];
+  const jumpDelays = [0, 4, 8, 12];
+  const steerDirections = [-1, 0, 1] as const;
+  const steerDelays = [0, 12, 24];
+  const jumpHolds = [1, 30, 60];
+
+  const attempt = (route: DryJumpRoute): boolean => {
+    const player = createPlayer(route.startX, lower.y - PLAYER_SIZE);
+    player.onGround = true;
+    const simulation = sectionSimulation(section, player, 0, (entity) => !(entity instanceof GearEntity));
+    let jumpFrame: number | null = route.timing === 'ground' ? route.runFrames + route.jumpDelay : null;
+    let leftGround = false;
+
+    for (let frame = 0; frame < 180; frame += 1) {
+      const shouldJump = jumpFrame !== null && frame === jumpFrame;
+      const steerAt = jumpFrame === null ? Number.POSITIVE_INFINITY : jumpFrame + route.steerDelay;
+      const wasGrounded = player.onGround;
+      const result = simulation.step(input({
+        moveX: frame < steerAt ? route.runDirection : route.steerDirection,
+        jump: jumpFrame !== null && frame >= jumpFrame && frame < jumpFrame + route.jumpHold,
+        jumpPressed: shouldJump,
+      }));
+      if (!result.safe) return false;
+      if (landedOn(player, target)) return true;
+      if (route.timing === 'coyote' && !leftGround && wasGrounded && !player.onGround) {
+        leftGround = true;
+        jumpFrame = frame + 1 + route.jumpDelay;
+      }
+    }
+    return false;
+  };
+
+  for (const startX of startXs) {
+    for (const runDirection of runDirections) {
+      for (const runFrameCount of runFrames) {
+        for (const jumpDelay of jumpDelays) {
+          for (const steerDirection of steerDirections) {
+            for (const steerDelay of steerDelays) {
+              for (const jumpHold of jumpHolds) {
+                const route: DryJumpRoute = {
+                  startX,
+                  runDirection,
+                  runFrames: runFrameCount,
+                  jumpDelay,
+                  timing: 'ground',
+                  steerDirection,
+                  steerDelay,
+                  jumpHold,
+                };
+                if (attempt(route)) return route;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const startX of startXs) {
+    for (const runDirection of runDirections) {
+      for (const jumpDelay of [0, 3, 7, 10]) {
+        for (const steerDirection of steerDirections) {
+          for (const steerDelay of steerDelays) {
+            for (const jumpHold of jumpHolds) {
+              const route: DryJumpRoute = {
+                startX,
+                runDirection,
+                runFrames: 0,
+                jumpDelay,
+                timing: 'coyote',
+                steerDirection,
+                steerDelay,
+                jumpHold,
+              };
+              if (attempt(route)) return route;
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function simulateGearTransfer(transfer: GearTransfer): { boarded: boolean; carryFrames: number; landed: boolean; safe: boolean; final: { x: number; y: number; onGround: boolean } } {
@@ -322,8 +424,8 @@ describe('STAGE_02_CLOCKWORK', () => {
     const transfers = [
       { section: 2, gear: 0, lowerY: 660, upperY: 360, board: -1 as const, dismount: -1 as const },
       { section: 2, gear: 1, lowerY: 360, upperY: 70, board: 1 as const, dismount: 1 as const, boardFrames: 24 },
-      { section: 5, gear: 0, lowerY: 535, upperY: 377, board: -1 as const, dismount: -1 as const },
-      { section: 5, gear: 1, lowerY: 377, upperY: 219, board: 1 as const, dismount: 1 as const },
+      { section: 5, gear: 0, lowerY: 535, upperY: 350, board: -1 as const, dismount: -1 as const },
+      { section: 5, gear: 1, lowerY: 350, upperY: 230, board: 1 as const, dismount: 1 as const },
       { section: 6, gear: 0, lowerY: 535, upperY: 330, board: -1 as const, dismount: 1 as const, boardFrames: 60, boardLead: 0.15, dismountDuration: 0.45, prepareDismount: true, prepareLead: 0.525 },
     ];
 
@@ -336,34 +438,22 @@ describe('STAGE_02_CLOCKWORK', () => {
     }
   });
 
-  it('cannot dry-jump the first Machine Climb gear gate with production movement', () => {
+  it('has no ordinary-jump route around the first Machine Climb gear gate', () => {
     const climb = STAGE_02_CLOCKWORK.sections[5];
     const conveyorFloor = routePlatforms(climb).find((solid) => solid.y === 535);
-    const firstLanding = routePlatforms(climb).find((solid) => solid.y === 377);
+    const firstLanding = routePlatforms(climb).find((solid) => solid.y === 350);
     if (!conveyorFloor || !firstLanding) throw new Error('machine-climb dry-jump fixture missing');
 
-    const player = createPlayer(conveyorFloor.x, conveyorFloor.y - PLAYER_SIZE);
-    player.onGround = true;
-    const simulation = sectionSimulation(climb, player, 0, (entity) => !(entity instanceof GearEntity));
-    let landed = false;
-    for (let frame = 0; frame < 180; frame += 1) {
-      simulation.step(input({
-        moveX: frame < 90 ? -1 : 0,
-        jump: frame < 48,
-        jumpPressed: frame === 0,
-      }));
-      landed ||= landedOn(player, firstLanding);
-    }
-    expect(landed).toBe(false);
+    expect(findDryJumpRoute(climb, conveyorFloor, firstLanding)).toBeNull();
   });
 
   it('continuously boards and rides the Machine Climb piston to its exit', () => {
     const climb = STAGE_02_CLOCKWORK.sections[5];
-    const lower = routePlatforms(climb).find((solid) => solid.y === 219);
+    const lower = routePlatforms(climb).find((solid) => solid.y === 230);
     const exit = routePlatforms(climb).find((solid) => solid.y === 60 && solid.x === 640);
     if (!lower || !exit) throw new Error('machine-climb piston fixture missing');
 
-    const player = createPlayer(510, lower.y - PLAYER_SIZE);
+    const player = createPlayer(530, lower.y - PLAYER_SIZE);
     player.onGround = true;
     const simulation = sectionSimulation(climb, player, 1.3);
     const lift = simulation.entities.find((entity): entity is PistonEntity => entity instanceof PistonEntity);
@@ -378,7 +468,7 @@ describe('STAGE_02_CLOCKWORK', () => {
       boarded ||= onLift;
       const readyToExit = boarded && simulation.time >= 1.84;
       const result = simulation.step(!boarded
-        ? input({ moveX: 1, jump: frame < 30, jumpPressed: frame === 0 })
+        ? input({ moveX: 1 })
         : readyToExit
           ? input({ moveX: 1, jump: simulation.time < 2.09, jumpPressed: simulation.time < 1.84 + STEP })
           : input());
@@ -495,10 +585,13 @@ describe('STAGE_02_CLOCKWORK', () => {
     const climb = STAGE_02_CLOCKWORK.sections[5];
     const climbLevels = [...new Set(routePlatforms(climb).filter((solid) => solid.role === 'main').map((solid) => solid.y))]
       .sort((a, b) => b - a);
-    expect(climbLevels).toEqual([660, 535, 377, 219, 60]);
-    expect(climbLevels.slice(1).map((level, index) => climbLevels[index] - level)).toEqual([125, 158, 158, 159]);
+    expect(climbLevels).toEqual([660, 535, 350, 230, 60]);
+    expect(climbLevels.slice(1).map((level, index) => climbLevels[index] - level)).toEqual([125, 185, 120, 170]);
+    expect(climbLevels[1] - climbLevels[2]).toBeGreaterThanOrEqual(
+      MEASURED_ORDINARY_JUMP_APEX + REQUIRED_GATE_CLEARANCE,
+    );
     const lift = climb.entities.find((entity) => entity.type === 'piston');
-    expect(lift).toMatchObject({ type: 'piston', axis: 'y', y: 76, travel: 119 });
+    expect(lift).toMatchObject({ type: 'piston', axis: 'y', y: 76, travel: 154 });
     if (!lift || lift.type !== 'piston') throw new Error('machine-climb piston missing');
     const topRow = routePlatforms(climb).filter((solid) => solid.y === 60).sort((a, b) => a.x - b.x);
     expect(topRow.map((solid) => [solid.x, solid.x + solid.w])).toEqual([[300, lift.x], [lift.x + lift.w, 920]]);

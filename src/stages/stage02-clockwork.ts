@@ -89,14 +89,14 @@ export const STAGE_02_CLOCKWORK: StageDef = {
     section(5, 540, [
       platform(500, 660, 360),
       conveyor(320, 535, 360, 'conveyorRight', 160),
-      platform(24, 377, 286),
-      platform(480, 219, 320),
+      platform(24, 350, 286),
+      platform(530, 230, 270),
       platform(300, 60, 260),
       platform(640, 60, 280),
     ], [
       { type: 'gear', x: 330, y: 421, radius: 35, period: 4, phase: 0, paddleW: 120 },
       { type: 'gear', x: 350, y: 263, radius: 35, period: 4, phase: 0, paddleW: 110 },
-      { type: 'piston', x: 560, y: 76, w: 80, h: 24, axis: 'y', travel: 119, phase: 0.25 },
+      { type: 'piston', x: 560, y: 76, w: 80, h: 24, axis: 'y', travel: 154, phase: 0.25 },
     ]),
 
     // 7. The finale stays linear: fast belt, large gear, two telegraphed shoves, then one gate.
