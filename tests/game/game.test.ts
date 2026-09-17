@@ -198,7 +198,7 @@ describe('Game entity interaction pipeline', () => {
       dynamicSolids: () => [{ box: { x: 103, y: 200, w: 120, h: 20 }, delta: { x: 3, y: 0 } }],
       field: (player) => {
         sampledAtX = player.x;
-        return { accelerationX: 20, accelerationY: 0 };
+        return { accelerationX: 0, accelerationY: 0 };
       },
     }));
     Object.assign(game.player, { x: 130, y: 172, onGround: true });

@@ -86,6 +86,16 @@ export function validateStage(stage: StageDef): string[] {
           errors.push(`${label} timed door must be finite and at least ${MIN_SOLID_THICKNESS} units on each axis`);
         }
       }
+      if (entity.type === 'water') {
+        if (![entity.x, entity.y, entity.w, entity.h].every(Number.isFinite)
+          || entity.w < 24 || entity.h < 24) {
+          errors.push(`${label} water must be at least 24 units on each axis with finite bounds`);
+        }
+        if (![entity.currentX, entity.currentY].every(Number.isFinite)
+          || Math.abs(entity.currentX) > 420 || Math.abs(entity.currentY) > 420) {
+          errors.push(`${label} water current components must be finite and at most 420`);
+        }
+      }
     }
   }
   return errors;

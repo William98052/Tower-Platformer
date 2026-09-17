@@ -6,6 +6,7 @@ import { GearEntity } from './gear';
 import { MushroomEntity } from './mushroom';
 import { PistonEntity } from './piston';
 import { TimedDoorEntity } from './timed-door';
+import { WaterEntity } from './water';
 
 class PromptEntity implements Entity {
   constructor(private readonly def: Extract<EntityDef, { type: 'prompt' }>) {}
@@ -34,6 +35,7 @@ export function createEntities(defs: readonly EntityDef[]): Entity[] {
       case 'gear': return new GearEntity(def);
       case 'piston': return new PistonEntity(def);
       case 'timedDoor': return new TimedDoorEntity(def);
+      case 'water': return new WaterEntity(def);
     }
   });
 }

@@ -42,7 +42,13 @@ export function resolveFieldEffects(effects: readonly FieldEffect[]): FieldEffec
     water = water ? strongestWater(water, effect.water) : { ...effect.water };
   }
 
+  accelerationX = clampCurrent(accelerationX);
+  accelerationY = clampCurrent(accelerationY);
   return water ? { accelerationX, accelerationY, water } : { accelerationX, accelerationY };
+}
+
+function clampCurrent(acceleration: number): number {
+  return Math.max(-420, Math.min(420, acceleration));
 }
 
 function strongestWater(a: WaterEffect, b: WaterEffect): WaterEffect {

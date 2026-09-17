@@ -87,6 +87,33 @@ describe('validateStage', () => {
     ]));
   });
 
+  it('rejects undersized water and currents above the supported cap', () => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push(
+      { type: 'water', x: 20, y: 20, w: 23, h: 24, currentX: 0, currentY: 0 } as EntityDef,
+      { type: 'water', x: 20, y: 20, w: 24, h: 23, currentX: 0, currentY: 0 } as EntityDef,
+      { type: 'water', x: 20, y: 20, w: 100, h: 80, currentX: 421, currentY: -421 } as EntityDef,
+    );
+
+    expect(validateStage(broken)).toEqual(expect.arrayContaining([
+      expect.stringContaining('water must be at least 24'),
+      expect.stringContaining('water must be at least 24'),
+      expect.stringContaining('water current'),
+    ]));
+  });
+
+  it.each([
+    ['width NaN', { x: 20, y: 20, w: Number.NaN, h: 80, currentX: 0, currentY: 0 }, 'water'],
+    ['height infinity', { x: 20, y: 20, w: 80, h: Number.POSITIVE_INFINITY, currentX: 0, currentY: 0 }, 'water'],
+    ['current NaN', { x: 20, y: 20, w: 80, h: 80, currentX: Number.NaN, currentY: 0 }, 'water current'],
+    ['current infinity', { x: 20, y: 20, w: 80, h: 80, currentX: 0, currentY: Number.POSITIVE_INFINITY }, 'water current'],
+  ] as const)('rejects invalid water %s', (_case, water, message) => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push({ type: 'water', ...water } as EntityDef);
+
+    expect(validateStage(broken)).toContainEqual(expect.stringContaining(message));
+  });
+
   it.each([
     ['gear radius NaN', { type: 'gear', x: 20, y: 20, radius: Number.NaN, period: 4, phase: 0, paddleW: 60 }, 'gear radius'],
     ['gear radius infinity', { type: 'gear', x: 20, y: 20, radius: Number.POSITIVE_INFINITY, period: 4, phase: 0, paddleW: 60 }, 'gear radius'],

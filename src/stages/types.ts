@@ -29,7 +29,8 @@ export type EntityDef =
   | { type: 'prompt'; x: number; y: number; w: number; h: number; prompt: PromptId }
   | { type: 'gear'; x: number; y: number; radius: number; period: 4 | 6; phase: number; paddleW: number }
   | { type: 'piston'; x: number; y: number; w: number; h: number; axis: 'x' | 'y'; travel: number; phase: number }
-  | { type: 'timedDoor'; x: number; y: number; w: number; h: number; phase: number };
+  | { type: 'timedDoor'; x: number; y: number; w: number; h: number; phase: number }
+  | { type: 'water'; x: number; y: number; w: number; h: number; currentX: number; currentY: number };
 
 export interface SectionDef {
   id: number;

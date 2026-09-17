@@ -23,6 +23,19 @@ export interface Player extends AABB {
   dashCooldown: number;
   /** Wall side that already refilled the dash this airtime; resets on landing. */
   lastWallRefillDir: -1 | 0 | 1;
+  strokeCooldown: number;
+  /** Tracks the wet-to-dry edge so water momentum can be safely capped on exit. */
+  wasSubmerged: boolean;
+}
+
+export interface PlayerEnvironment {
+  gravityScale: number;
+  maxFall: number;
+  dragPerStep: number;
+  strokeSpeed: number;
+  strokeCooldown: number;
+  accelerationX: number;
+  accelerationY: number;
 }
 
 /** What happened during one step, for effects and sound. */
@@ -54,6 +67,8 @@ export function createPlayer(x: number, y: number): Player {
     dashTimer: 0,
     dashCooldown: 0,
     lastWallRefillDir: 0,
+    strokeCooldown: 0,
+    wasSubmerged: false,
   };
 }
 
@@ -73,21 +88,41 @@ export function stepPlayer(
   input: InputFrame,
   solids: readonly CollisionSolid[],
   dt = C.STEP,
-  _environment: FieldEffect | null = null,
+  field: FieldEffect | null = null,
 ): StepEvents {
+  const environment = resolvePlayerEnvironment(field);
+  const submerged = field?.water !== undefined;
+  const strokeStartVy = p.vy;
   const events: StepEvents = { jumped: false, wallJumped: false, dashed: false, landed: 0 };
-  tickTimers(p, input, dt);
+  if (p.wasSubmerged && !submerged) capWaterExitVelocity(p);
+  tickTimers(p, submerged ? { ...input, jumpPressed: false } : input, dt);
+  if (submerged) p.jumpBuffer = 0;
   if (tryStartDash(p, input, events) || p.dashTimer > 0) {
     updateDash(p, dt);
   } else {
     applyHorizontal(p, input, dt);
-    applyGravity(p, input, dt);
+    applyGravity(p, input, dt, environment);
   }
-  tryJump(p, events);
+  applyEnvironment(p, environment, submerged, dt);
+  if (submerged) tryStroke(p, input, environment, strokeStartVy);
+  else tryJump(p, events);
   applyJumpCut(p, input);
   moveAndResolve(p, solids, dt, events);
   refillDash(p, input);
+  p.wasSubmerged = submerged;
   return events;
+}
+
+export function resolvePlayerEnvironment(field: FieldEffect | null): PlayerEnvironment {
+  return {
+    gravityScale: field?.water?.gravityScale ?? 1,
+    maxFall: field?.water?.maxFall ?? C.MAX_FALL,
+    dragPerStep: field?.water?.dragPerStep ?? 1,
+    strokeSpeed: field?.water?.strokeSpeed ?? 0,
+    strokeCooldown: field?.water?.strokeCooldown ?? 0,
+    accelerationX: field?.accelerationX ?? 0,
+    accelerationY: field?.accelerationY ?? 0,
+  };
 }
 
 function applyHorizontal(p: Player, input: InputFrame, dt: number): void {
@@ -98,8 +133,8 @@ function applyHorizontal(p: Player, input: InputFrame, dt: number): void {
   p.vx = approach(p.vx, target, accel * control * dt);
 }
 
-function applyGravity(p: Player, input: InputFrame, dt: number): void {
-  p.vy = Math.min(p.vy + C.GRAVITY * dt, C.MAX_FALL);
+function applyGravity(p: Player, input: InputFrame, dt: number, environment: PlayerEnvironment): void {
+  p.vy = Math.min(p.vy + C.GRAVITY * environment.gravityScale * dt, environment.maxFall);
   const sliding = !p.onGround && p.wallDir !== 0 && input.moveX === p.wallDir;
   if (sliding && p.vy > C.WALL_SLIDE_MAX) p.vy = C.WALL_SLIDE_MAX;
 }
@@ -109,6 +144,31 @@ function tickTimers(p: Player, input: InputFrame, dt: number): void {
   p.jumpBuffer = input.jumpPressed ? C.JUMP_BUFFER : Math.max(0, p.jumpBuffer - dt);
   p.wallJumpLock = Math.max(0, p.wallJumpLock - dt);
   p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+  p.strokeCooldown = Math.max(0, p.strokeCooldown - dt);
+}
+
+function applyEnvironment(p: Player, environment: PlayerEnvironment, submerged: boolean, dt: number): void {
+  if (submerged) p.vx *= environment.dragPerStep;
+  p.vx += environment.accelerationX * dt;
+  p.vy = Math.min(p.vy + environment.accelerationY * dt, environment.maxFall);
+}
+
+function tryStroke(
+  p: Player,
+  input: InputFrame,
+  environment: PlayerEnvironment,
+  startVy: number,
+): void {
+  if (!input.jumpPressed || p.strokeCooldown > 0) return;
+  p.vy = Math.min(startVy, -environment.strokeSpeed);
+  p.strokeCooldown = environment.strokeCooldown;
+  p.jumpBuffer = 0;
+  p.jumping = false;
+}
+
+function capWaterExitVelocity(p: Player): void {
+  p.vx = Math.max(-C.RUN_SPEED, Math.min(C.RUN_SPEED, p.vx));
+  p.vy = Math.max(-C.MAX_FALL, Math.min(C.MAX_FALL, p.vy));
 }
 
 function tryJump(p: Player, events: StepEvents): void {
