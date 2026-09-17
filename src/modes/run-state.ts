@@ -3,7 +3,9 @@ import type { Point } from '../stages/types';
 export type Mode = 'normal' | 'hard';
 
 export interface Checkpoint extends Point {
-  section: number;
+  globalSection: number;
+  stageId: number;
+  localSection: number;
 }
 
 export interface RunState {

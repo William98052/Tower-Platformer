@@ -23,4 +23,10 @@ describe('StageBanner', () => {
     expect(banner.elapsed).toBe(0);
     expect(banner.stageName).toBe('Moss Ruins');
   });
+
+  it('reports the current stage label for gameplay consumers', () => {
+    const banner = new StageBanner();
+    banner.enter(2, 'Clockwork Hall');
+    expect(banner.label()).toEqual({ stage: 2, name: 'Clockwork Hall' });
+  });
 });

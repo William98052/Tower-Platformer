@@ -296,12 +296,13 @@ function render(): void {
   drawAfterimages(ctx, afterimages, player.w, player.h, camX, camY);
   drawPlayer(ctx, { ...player, x: rx, y: ry }, squash, camX, camY, game.time, glowScale);
   drawParticles(ctx, particles, camX, camY);
-  drawHud(ctx, game.run, ry, game.world.height, game.world.stage.name);
+  drawHud(ctx, game, ry);
   drawPrompt(ctx, game.prompts);
   drawStageBanner(ctx, game.banner);
   if (app.screen === 'playing') {
     debug.draw(ctx, { ...player, x: rx, y: ry }, game.world.solids, camX, camY, stepsThisFrame, {
-      mode: game.run.mode, section: game.currentSection, noclip: game.noclip,
+      mode: game.run.mode, stageId: game.currentStage.id,
+      localSection: game.world.sections[game.currentSection].localSection, noclip: game.noclip,
     });
   }
 }

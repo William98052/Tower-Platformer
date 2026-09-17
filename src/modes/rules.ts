@@ -8,10 +8,10 @@ export const HARD_KNOCKBACK_Y = 300;
 export const HARD_STUN = 0.4;
 export const HARD_INVULNERABILITY = 0.6;
 
-export function createRunState(mode: Mode, spawn: Point, section: number): RunState {
+export function createRunState(mode: Mode, spawn: Point, globalSection: number, stageId = 1, localSection = globalSection): RunState {
   return {
     mode,
-    checkpoint: { ...spawn, section },
+    checkpoint: { ...spawn, globalSection, stageId, localSection },
     falls: 0,
     elapsed: 0,
     bestY: spawn.y,
@@ -27,10 +27,14 @@ export function stepRunTimers(run: RunState, dt: number): void {
   run.invulnerability = Math.max(0, run.invulnerability - dt);
 }
 
-export function activateCheckpoint(run: RunState, point: Point, section: number): boolean {
-  if (run.mode !== 'normal' || section < run.checkpoint.section) return false;
-  const changed = section !== run.checkpoint.section || point.x !== run.checkpoint.x || point.y !== run.checkpoint.y;
-  run.checkpoint = { ...point, section };
+export function activateCheckpoint(run: RunState, point: Point, globalSection: number, stageId = 1, localSection = globalSection): boolean {
+  if (run.mode !== 'normal' || globalSection < run.checkpoint.globalSection) return false;
+  const changed = globalSection !== run.checkpoint.globalSection
+    || stageId !== run.checkpoint.stageId
+    || localSection !== run.checkpoint.localSection
+    || point.x !== run.checkpoint.x
+    || point.y !== run.checkpoint.y;
+  run.checkpoint = { ...point, globalSection, stageId, localSection };
   return changed;
 }
 

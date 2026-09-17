@@ -14,7 +14,7 @@ describe('Normal rules', () => {
   it('activates checkpoints and respawns after falling one screen below', () => {
     const run = createRunState('normal', { x: 20, y: 1000 }, 0);
     activateCheckpoint(run, { x: 80, y: 600 }, 2);
-    expect(run.checkpoint).toEqual({ x: 80, y: 600, section: 2 });
+    expect(run.checkpoint).toEqual({ x: 80, y: 600, globalSection: 2, stageId: 1, localSection: 2 });
     expect(shouldRespawnForFall(run, 1140)).toBe(false);
     expect(shouldRespawnForFall(run, 1141)).toBe(true);
   });
@@ -31,7 +31,7 @@ describe('Hard rules', () => {
   it('ignores checkpoints', () => {
     const run = createRunState('hard', { x: 20, y: 1000 }, 0);
     activateCheckpoint(run, { x: 80, y: 600 }, 2);
-    expect(run.checkpoint).toEqual({ x: 20, y: 1000, section: 0 });
+    expect(run.checkpoint).toEqual({ x: 20, y: 1000, globalSection: 0, stageId: 1, localSection: 0 });
   });
 
   it('applies knockback, stun and invulnerability', () => {
@@ -55,6 +55,19 @@ describe('Hard rules', () => {
 });
 
 describe('shared stats', () => {
+  it('orders checkpoints globally and preserves their stage and local identities', () => {
+    const run = createRunState('normal', { x: 20, y: 1000 }, 6, 1, 6);
+    expect(activateCheckpoint(run, { x: 80, y: 600 }, 10, 2, 3)).toBe(true);
+    expect(run.checkpoint).toEqual({ x: 80, y: 600, globalSection: 10, stageId: 2, localSection: 3 });
+    expect(activateCheckpoint(run, { x: 90, y: 800 }, 6, 1, 6)).toBe(false);
+    expect(run.checkpoint.globalSection).toBe(10);
+    expect(activateCheckpoint(run, { x: 80, y: 600 }, 10, 2, 3)).toBe(false);
+  });
+  it('treats checkpoint identity changes as activation changes', () => {
+    const run = createRunState('normal', { x: 20, y: 1000 }, 6, 1, 6);
+    expect(activateCheckpoint(run, { x: 20, y: 1000 }, 6, 2, 0)).toBe(true);
+    expect(run.checkpoint).toMatchObject({ globalSection: 6, stageId: 2, localSection: 0 });
+  });
   it('advances gameplay time and countdown timers', () => {
     const run = createRunState('hard', { x: 0, y: 1000 }, 0);
     run.stun = 0.4;

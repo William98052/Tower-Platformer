@@ -4,8 +4,8 @@ import type { Settings } from '../core/settings';
 import { DEFAULT_SETTINGS } from '../core/settings';
 import { Game, type GameStepResult } from '../game/game';
 import type { Mode } from '../modes/run-state';
-import { STAGE_01_MOSS } from '../stages/stage01-moss';
-import type { StageDef } from '../stages/types';
+import { TOWER } from '../stages/tower';
+import type { StageDef, TowerDef } from '../stages/types';
 
 export type Screen = 'title' | 'modeSelect' | 'playing' | 'paused' | 'settings';
 export type SettingsOrigin = 'title' | 'paused';
@@ -28,7 +28,7 @@ export class AppController {
   private settingsOrigin: SettingsOrigin = 'title';
   private hardSaveClock = 0;
 
-  constructor(private readonly store: SaveStore, private readonly stage: StageDef = STAGE_01_MOSS) {
+  constructor(private readonly store: SaveStore, private readonly tower: TowerDef | StageDef = TOWER) {
     const save = this.store.load();
     if (this.store.notice) this.notice = { message: this.store.notice };
     void save;
@@ -68,7 +68,7 @@ export class AppController {
     const save = this.store.load();
     const snapshot = save.runs[mode];
     if (!snapshot || snapshot.kind !== mode) return false;
-    const restored = Game.restore(this.stage, snapshot, save.completedPrompts);
+    const restored = Game.restore(this.tower, snapshot, save.completedPrompts);
     if (!restored) {
       this.store.update((data) => { data.runs[mode] = null; });
       this.notice = { message: 'That saved run could not be restored and was cleared.' };
@@ -157,7 +157,7 @@ export class AppController {
 
   private startFresh(mode: Mode): void {
     const completed = this.store.load().completedPrompts;
-    this.game = new Game(mode, this.stage, completed);
+    this.game = new Game(mode, this.tower, completed);
     this.screen = 'playing';
     this.pendingConfirmation = null;
     this.hardSaveClock = 0;

@@ -29,7 +29,7 @@ export function drawCheckpoints(
   for (const section of sections) {
     const x = section.checkpoint.x - camX;
     const y = section.checkpoint.y - camY;
-    const lit = section.id <= active.section;
+    const lit = section.globalIndex <= active.globalSection;
     ctx.save();
     ctx.strokeStyle = lit ? '#dff5a6' : '#65735c';
     ctx.lineWidth = 3;

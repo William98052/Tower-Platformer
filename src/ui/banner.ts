@@ -16,6 +16,10 @@ export class StageBanner {
     this.elapsed = 0;
   }
 
+  label(): { stage: number; name: string } {
+    return { stage: this.stageNumber, name: this.stageName };
+  }
+
   update(dt: number): void {
     this.elapsed = Math.min(TOTAL_TIME, this.elapsed + Math.max(0, dt));
   }

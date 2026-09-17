@@ -10,6 +10,7 @@ import {
 import { EMPTY_INPUT } from '../../src/core/input';
 import { DEFAULT_SETTINGS } from '../../src/core/settings';
 import type { HardRunSaveV2 } from '../../src/game/run-snapshot';
+import { threeStageTower } from '../helpers/tower';
 
 function memoryStorage(initial: Record<string, string> = {}): StorageLike & { values: Map<string, string> } {
   const values = new Map(Object.entries(initial));
@@ -90,12 +91,25 @@ describe('AppController screen flow', () => {
 });
 
 describe('AppController persistence policy', () => {
+  it('continues a checkpoint in a later stage of the supplied tower', () => {
+    const store = new SaveStore(memoryStorage());
+    const app = new AppController(store, threeStageTower);
+    app.openModeSelect();
+    app.newRun('normal');
+    app.game!.warp(10);
+    app.step(EMPTY_INPUT);
+    expect(store.load().runs.normal).toMatchObject({ stageId: 2, localSection: 3 });
+    app.quitToTitle();
+    expect(app.continueRun('normal')).toBe(true);
+    expect(app.game?.currentSection).toBe(10);
+    expect(app.game?.currentStage.name).toBe('Clockwork Hall');
+  });
   it('writes a Normal run immediately when a checkpoint activates', () => {
     const { app, store } = makeController();
     app.openModeSelect();
     app.newRun('normal');
     const checkpoint = app.game!.world.sections[1].checkpoint;
-    app.game!.run.checkpoint = { ...checkpoint, section: 1 };
+    app.game!.run.checkpoint = { ...checkpoint, globalSection: 1, stageId: 1, localSection: 1 };
     app.afterStep({ jumped: false, wallJumped: false, dashed: false, landed: 0, respawned: false, checkpointActivated: true, promptCompleted: null });
     expect(store.load().runs.normal).toMatchObject({
       kind: 'normal', stageId: 1, localSection: 1,

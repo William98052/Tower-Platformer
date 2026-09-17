@@ -11,7 +11,8 @@ export type DebugCommand =
 
 export interface DebugStatus {
   mode: Mode;
-  section: number;
+  stageId: number;
+  localSection: number;
   noclip: boolean;
 }
 
@@ -102,7 +103,10 @@ export class DebugOverlay {
       `wjLock ${player.wallJumpLock.toFixed(2)}  lastWJ ${player.lastWallJumpDir}  lastRefill ${player.lastWallRefillDir}`,
       `coyote ${player.coyote.toFixed(2)}  buffer ${player.jumpBuffer.toFixed(2)}`,
     ];
-    if (status) lines.push(`mode ${status.mode}  section ${status.section + 1}  noclip ${status.noclip}`);
+    if (status) {
+      lines.push(`mode ${status.mode}  noclip ${status.noclip}`);
+      lines.push(`Stage ${status.stageId} / Section ${status.localSection + 1}`);
+    }
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(8, 8, 320, 12 + lines.length * 16);
     ctx.fillStyle = '#e8f4ff';

@@ -73,9 +73,9 @@ describe('DebugOverlay', () => {
     const d = new DebugOverlay();
     d.handleKey('Backquote');
     const ctx = mockCtx();
-    d.draw(ctx, createPlayer(0, 0), [], 0, 0, 1, { mode: 'hard', section: 4, noclip: true });
+    d.draw(ctx, createPlayer(0, 0), [], 0, 0, 1, { mode: 'hard', stageId: 2, localSection: 4, noclip: true });
     expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('mode hard'), expect.any(Number), expect.any(Number));
-    expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('section 5'), expect.any(Number), expect.any(Number));
+    expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Stage 2 / Section 5'), expect.any(Number), expect.any(Number));
     expect(ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('noclip true'), expect.any(Number), expect.any(Number));
   });
 });

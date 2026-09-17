@@ -12,3 +12,8 @@ export function progressRatio(playerY: number, worldHeight: number): number {
   if (worldHeight <= 0) return 0;
   return clamp((worldHeight - playerY) / worldHeight, 0, 1);
 }
+
+export function stageProgressRatio(playerY: number, stageId: number, stageTop: number, stageBottom: number): number {
+  const localProgress = progressRatio(playerY - stageTop, stageBottom - stageTop);
+  return clamp((stageId - 1 + localProgress) / 10, 0, 1);
+}

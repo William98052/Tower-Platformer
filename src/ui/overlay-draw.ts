@@ -1,17 +1,18 @@
 import { VIEW_H, VIEW_W } from '../core/constants';
-import type { RunState } from '../modes/run-state';
+import type { Game } from '../game/game';
 import type { StageBanner } from './banner';
-import { formatTime, progressRatio } from './hud';
+import { formatTime, stageProgressRatio } from './hud';
 import type { PromptState } from './prompts';
 import { promptCopy } from './prompts';
 
 export function drawHud(
   ctx: CanvasRenderingContext2D,
-  run: RunState,
+  game: Game,
   playerY: number,
-  worldHeight: number,
-  stageName: string,
 ): void {
+  const run = game.run;
+  const stage = game.currentStage;
+  const sections = game.world.sections.filter((section) => section.stageId === stage.id);
   ctx.save();
   ctx.font = '600 15px ui-monospace, Menlo, monospace';
   ctx.textBaseline = 'top';
@@ -31,7 +32,8 @@ export function drawHud(
   ctx.fillStyle = '#536158';
   ctx.fillRect(barX - 1, barY, 2, barH);
   for (let i = 0; i <= 10; i++) ctx.fillRect(barX - 4, barY + barH - i * barH / 10, 8, 1);
-  const dotY = barY + barH * (1 - progressRatio(playerY, worldHeight));
+  const progress = stageProgressRatio(playerY, stage.id, sections[sections.length - 1].top, sections[0].bottom);
+  const dotY = barY + barH * (1 - progress);
   ctx.fillStyle = '#f2dda6';
   ctx.beginPath();
   ctx.arc(barX, dotY, 5, 0, Math.PI * 2);
@@ -41,7 +43,7 @@ export function drawHud(
   ctx.fillStyle = 'rgba(8, 14, 12, 0.64)';
   ctx.fillRect(16, VIEW_H - 48, 190, 32);
   ctx.fillStyle = '#d6e5b7';
-  ctx.fillText(stageName.toUpperCase(), 28, VIEW_H - 40);
+  ctx.fillText(stage.name.toUpperCase(), 28, VIEW_H - 40);
   ctx.restore();
 }
 

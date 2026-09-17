@@ -7,12 +7,14 @@ import {
 } from '../../src/game/run-snapshot';
 import { STAGE_01_MOSS } from '../../src/stages/stage01-moss';
 import { showPrompt } from '../../src/ui/prompts';
+import { EMPTY_INPUT } from '../../src/core/input';
+import { threeStageTower } from '../helpers/tower';
 
 describe('Game run snapshots', () => {
   it('snapshots and restores a Normal run at its lit checkpoint', () => {
     const game = new Game('normal');
     const checkpoint = game.world.sections[2].checkpoint;
-    game.run.checkpoint = { ...checkpoint, section: 2 };
+    game.run.checkpoint = { ...checkpoint, globalSection: 2, stageId: 1, localSection: 2 };
     game.run.elapsed = 12.5;
     game.run.falls = 3;
     game.run.bestY = checkpoint.y - 200;
@@ -87,5 +89,49 @@ describe('version 2 run snapshot validation', () => {
     expect(validateRunSaveV2(normal, 'normal')).toEqual(normal);
     expect(validateRunSaveV2({ ...normal, localSection: -1 }, 'normal')).toBeNull();
     expect(validateRunSaveV2({ ...normal, bestHeight: -1 }, 'normal')).toBeNull();
+  });
+});
+
+describe('cross-stage saves', () => {
+  it.each(['normal', 'hard'] as const)('restores %s location, elapsed phase, and floor-relative best height', (mode) => {
+    const game = new Game(mode, threeStageTower);
+    game.warp(10);
+    game.step(EMPTY_INPUT);
+    game.player.y = 6500;
+    game.player.vx = 50;
+    game.player.vy = -20;
+    game.run.elapsed = 42.5;
+    game.run.falls = 3;
+    game.run.bestY = 6300;
+    // Normal must save its checkpoint stage even if the player moves elsewhere.
+    if (mode === 'normal') game.warp(14);
+    const snapshot = game.snapshot();
+    expect(snapshot).toMatchObject({ kind: mode, stageId: 2, localSection: 3, elapsed: 42.5, falls: 3, bestHeight: 6300 });
+    if (snapshot.kind === 'hard') expect(snapshot).toMatchObject({ stageY: 1900, x: 100, vx: 50, vy: -20 });
+
+    const restored = Game.restore(threeStageTower, snapshot, ['jump']);
+    expect(restored?.currentSection).toBe(10);
+    expect(restored?.currentStage.id).toBe(2);
+    expect(restored?.banner.stageNumber).toBe(2);
+    expect(restored?.player.y).toBe(6500);
+    expect(restored?.time).toBe(42.5);
+    expect(restored?.run).toMatchObject({ elapsed: 42.5, falls: 3, bestY: 6300 });
+    if (mode === 'normal') expect(restored?.run.checkpoint).toMatchObject({ globalSection: 10, stageId: 2, localSection: 3 });
+    expect(restored?.snapshot()).toEqual(snapshot);
+    restored!.step(EMPTY_INPUT);
+    expect(restored!.time).toBe(restored!.run.elapsed);
+  });
+
+  it('keeps Hard stage-relative position and height when stages are added above a save', () => {
+    const shortTower = { stages: threeStageTower.stages.slice(0, 2) };
+    const snapshot: HardRunSaveV2 = {
+      kind: 'hard', stageId: 2, localSection: 3, x: 100, stageY: 1900,
+      vx: 50, vy: -20, elapsed: 42.5, falls: 3, bestHeight: 6300,
+    };
+    expect(Game.restore(shortTower, snapshot, [])?.player.y).toBe(2300);
+    expect(Game.restore(threeStageTower, snapshot, [])?.player.y).toBe(6500);
+    expect(Game.restore(threeStageTower, snapshot, [])?.snapshot()).toEqual(snapshot);
+    expect(Game.restore(threeStageTower, { ...snapshot, localSection: 2 }, [])).toBeNull();
+    expect(Game.restore(threeStageTower, { ...snapshot, stageId: 4 }, [])).toBeNull();
   });
 });
