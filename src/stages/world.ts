@@ -96,6 +96,20 @@ export function validateStage(stage: StageDef): string[] {
           errors.push(`${label} water current components must be finite and at most 420`);
         }
       }
+      if (entity.type === 'sinkingCrate') {
+        if (!Number.isFinite(entity.sinkDistance) || entity.sinkDistance <= 0) {
+          errors.push(`${label} crate sink distance must be positive and finite`);
+        }
+      }
+      if (entity.type === 'waterWheel') {
+        if (!Number.isFinite(entity.radius) || entity.radius <= 0) {
+          errors.push(`${label} water wheel radius must be positive and finite`);
+        }
+        if (![entity.paddleW, entity.paddleH].every(Number.isFinite)
+          || entity.paddleW <= 0 || entity.paddleH <= 0) {
+          errors.push(`${label} water wheel paddle dimensions must be positive and finite`);
+        }
+      }
     }
   }
   return errors;

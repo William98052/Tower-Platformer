@@ -102,6 +102,33 @@ describe('validateStage', () => {
     ]));
   });
 
+  it('rejects invalid Aqueduct ride parameters', () => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push(
+      { type: 'sinkingCrate', x: 20, y: 20, w: 80, h: 20, sinkDistance: 0 } as EntityDef,
+      { type: 'waterWheel', x: 200, y: 200, radius: 0, phase: 0, paddleW: 80, paddleH: 20 } as EntityDef,
+      { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 0, paddleW: 0, paddleH: -1 } as EntityDef,
+    );
+
+    expect(validateStage(broken)).toEqual(expect.arrayContaining([
+      expect.stringContaining('crate sink distance'),
+      expect.stringContaining('water wheel radius'),
+      expect.stringContaining('water wheel paddle dimensions'),
+    ]));
+  });
+
+  it.each([
+    ['crate sink distance NaN', { type: 'sinkingCrate', x: 20, y: 20, w: 80, h: 20, sinkDistance: Number.NaN }, 'crate sink distance'],
+    ['wheel radius infinity', { type: 'waterWheel', x: 200, y: 200, radius: Number.POSITIVE_INFINITY, phase: 0, paddleW: 80, paddleH: 20 }, 'water wheel radius'],
+    ['wheel paddle width NaN', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 0, paddleW: Number.NaN, paddleH: 20 }, 'water wheel paddle dimensions'],
+    ['wheel paddle height infinity', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 0, paddleW: 80, paddleH: Number.POSITIVE_INFINITY }, 'water wheel paddle dimensions'],
+  ] as const)('rejects non-finite %s', (_case, entity, message) => {
+    const broken = structuredClone(stage);
+    broken.sections[0].entities.push(entity as unknown as EntityDef);
+
+    expect(validateStage(broken)).toContainEqual(expect.stringContaining(message));
+  });
+
   it.each([
     ['width NaN', { x: 20, y: 20, w: Number.NaN, h: 80, currentX: 0, currentY: 0 }, 'water'],
     ['height infinity', { x: 20, y: 20, w: 80, h: Number.POSITIVE_INFINITY, currentX: 0, currentY: 0 }, 'water'],

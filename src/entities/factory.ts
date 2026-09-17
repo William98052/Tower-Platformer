@@ -7,6 +7,8 @@ import { MushroomEntity } from './mushroom';
 import { PistonEntity } from './piston';
 import { TimedDoorEntity } from './timed-door';
 import { WaterEntity } from './water';
+import { SinkingCrateEntity } from './sinking-crate';
+import { WaterWheelEntity } from './water-wheel';
 
 class PromptEntity implements Entity {
   constructor(private readonly def: Extract<EntityDef, { type: 'prompt' }>) {}
@@ -36,6 +38,8 @@ export function createEntities(defs: readonly EntityDef[]): Entity[] {
       case 'piston': return new PistonEntity(def);
       case 'timedDoor': return new TimedDoorEntity(def);
       case 'water': return new WaterEntity(def);
+      case 'sinkingCrate': return new SinkingCrateEntity(def);
+      case 'waterWheel': return new WaterWheelEntity(def);
     }
   });
 }

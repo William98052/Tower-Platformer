@@ -34,6 +34,7 @@ export class Game {
   currentSection = 0;
   time = 0;
   private readonly entitiesBySection: Entity[][];
+  private activeEntitySections = new Set<number>();
 
   constructor(mode: Mode = 'normal', tower: TowerDef | StageDef = TOWER, completedPrompts: Iterable<PromptId> = []) {
     this.world = buildWorld('stages' in tower ? tower : { stages: [tower] });
@@ -56,6 +57,12 @@ export class Game {
     this.time += STEP;
 
     const sectionIndexes = this.activeSectionIndexes(cameraY);
+    const nextActiveEntitySections = new Set(sectionIndexes);
+    for (const index of this.activeEntitySections) {
+      if (nextActiveEntitySections.has(index)) continue;
+      for (const entity of this.entitiesBySection[index]) entity.reset();
+    }
+    this.activeEntitySections = nextActiveEntitySections;
     const sections = sectionIndexes.map((index) => this.world.sections[index]);
     const entities = sectionIndexes.flatMap((index) => this.entitiesBySection[index]);
     for (const entity of entities) entity.update(this.time, STEP);

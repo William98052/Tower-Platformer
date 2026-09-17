@@ -3,6 +3,13 @@ import type { CollisionSolid } from '../physics/collision';
 import type { Player } from '../physics/player';
 import type { DynamicSolid, FieldEffect, WaterEffect } from './entity';
 
+/** Reports whether the player's feet rest on a solid's current collision box. */
+export function isStandingOnSolid(player: Player, solid: CollisionSolid): boolean {
+  return Math.abs(player.y + player.h - solid.y) <= 1
+    && player.x + player.w > solid.x
+    && player.x < solid.x + solid.w;
+}
+
 /** Carries a player resting on a moving solid without allowing the carry to embed them. */
 export function carryStandingPlayer(
   player: Player,
@@ -11,9 +18,12 @@ export function carryStandingPlayer(
 ): boolean {
   const previousX = solid.box.x - solid.delta.x;
   const previousY = solid.box.y - solid.delta.y;
-  const standing = Math.abs(player.y + player.h - previousY) <= 1
-    && player.x + player.w > previousX
-    && player.x < previousX + solid.box.w;
+  const standing = isStandingOnSolid(player, {
+    x: previousX,
+    y: previousY,
+    w: solid.box.w,
+    h: solid.box.h,
+  });
   if (!standing) return false;
 
   const candidate = {
