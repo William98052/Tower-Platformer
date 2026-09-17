@@ -77,7 +77,32 @@ export class PistonEntity implements Entity {
   }
 
   field(): FieldEffect | null { return null; }
-  draw(): void {}
+  draw(ctx: CanvasRenderingContext2D, _t: number, alpha: number): void {
+    const x = this.previous.x + (this.current.x - this.previous.x) * alpha;
+    const y = this.previous.y + (this.current.y - this.previous.y) * alpha;
+    const endX = this.def.x + (this.def.axis === 'x' ? this.def.travel : 0);
+    const endY = this.def.y + (this.def.axis === 'y' ? this.def.travel : 0);
+    const warning = this.phase === 'warning';
+    ctx.save();
+    ctx.strokeStyle = warning ? '#f15a32' : '#756744';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(this.def.x + this.def.w / 2, this.def.y + this.def.h / 2);
+    ctx.lineTo(endX + this.def.w / 2, endY + this.def.h / 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#342f28';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = warning ? '#e6522f' : '#3b3935';
+    ctx.fillRect(x, y, this.def.w, this.def.h);
+    ctx.fillStyle = warning ? '#ffd07a' : '#d0a34b';
+    ctx.fillRect(x, y, this.def.w, 4);
+    ctx.fillStyle = warning ? '#ff6a3c' : '#76623a';
+    ctx.beginPath();
+    ctx.arc(this.def.x + this.def.w / 2, this.def.y + this.def.h / 2, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   collide(player: Player): EntityContact {
     if (!overlaps(player, this.current)) return { kind: 'none' };

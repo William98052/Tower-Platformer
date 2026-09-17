@@ -1,6 +1,8 @@
 import { VIEW_H, VIEW_W } from '../core/constants';
 import type { CollisionSolid } from '../physics/collision';
 import type { SolidRole, SurfaceType } from '../stages/types';
+import { CLOCKWORK_THEME_RENDERER } from './clockwork-draw';
+import type { ThemeBlend, ThemeRenderer } from './themes';
 
 const COLORS = {
   skyTop: '#0e1815',
@@ -53,7 +55,7 @@ function tile(offX: number, offY: number, w: number, h: number, draw: (x: number
   }
 }
 
-export function drawBackground(ctx: CanvasRenderingContext2D, camX: number, camY: number, t: number): void {
+function drawMossBackground(ctx: CanvasRenderingContext2D, camX: number, camY: number, t: number, effectsScale = 1): void {
   const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   sky.addColorStop(0, COLORS.skyTop);
   sky.addColorStop(1, COLORS.skyBottom);
@@ -64,7 +66,7 @@ export function drawBackground(ctx: CanvasRenderingContext2D, camX: number, camY
   tile(camX * 0.22, camY * 0.22, 360, 420, (x, y) => drawRuin(ctx, x, y));
   tile(camX * 0.48, camY * 0.48, 420, 500, (x, y) => drawVines(ctx, x, y, t));
   drawMist(ctx, camY, t);
-  drawSpores(ctx, camY, t);
+  drawSpores(ctx, camY, t, effectsScale);
 }
 
 function drawLightShafts(ctx: CanvasRenderingContext2D, t: number): void {
@@ -157,8 +159,9 @@ function drawMist(ctx: CanvasRenderingContext2D, camY: number, t: number): void 
   ctx.restore();
 }
 
-function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number): void {
-  for (let i = 0; i < 40; i++) {
+function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number, effectsScale = 1): void {
+  const count = Math.max(10, Math.round(40 * effectsScale));
+  for (let i = 0; i < count; i++) {
     const x = ((i * 137.5) % VIEW_W) + Math.sin(t + i) * 6;
     const y = mod(i * 89 - t * 12 - camY * 0.8, VIEW_H);
     const a = 0.25 + 0.25 * Math.sin(t * 2 + i);
@@ -167,7 +170,7 @@ function drawSpores(ctx: CanvasRenderingContext2D, camY: number, t: number): voi
   }
 }
 
-export function drawSolids(
+function drawMossSolids(
   ctx: CanvasRenderingContext2D,
   solids: readonly CollisionSolid[],
   camX: number,
@@ -262,4 +265,65 @@ export function drawSolids(
     }
     ctx.restore();
   }
+}
+
+const MOSS_THEME_RENDERER: ThemeRenderer = {
+  drawBackground: drawMossBackground,
+  drawSolids: drawMossSolids,
+};
+
+function rendererFor(stageId: number): ThemeRenderer {
+  return stageId === 2 ? CLOCKWORK_THEME_RENDERER : MOSS_THEME_RENDERER;
+}
+
+export function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  camX: number,
+  camY: number,
+  t: number,
+  blend?: ThemeBlend,
+  effectsScale = 1,
+): void {
+  if (!blend) {
+    MOSS_THEME_RENDERER.drawBackground(ctx, camX, camY, t, effectsScale);
+    return;
+  }
+  drawThemeLayer(ctx, 1 - blend.mix, () => {
+    rendererFor(blend.lower.id).drawBackground(ctx, camX, camY, t, effectsScale);
+  });
+  if (blend.mix > 0 || blend.upper.id !== blend.lower.id) {
+    drawThemeLayer(ctx, blend.mix, () => {
+      rendererFor(blend.upper.id).drawBackground(ctx, camX, camY, t, effectsScale);
+    });
+  }
+}
+
+export function drawSolids(
+  ctx: CanvasRenderingContext2D,
+  solids: readonly CollisionSolid[],
+  camX: number,
+  camY: number,
+  blurScale = 1,
+  blend?: ThemeBlend,
+): void {
+  if (!blend) {
+    MOSS_THEME_RENDERER.drawSolids(ctx, solids, camX, camY, blurScale);
+    return;
+  }
+  drawThemeLayer(ctx, 1 - blend.mix, () => {
+    rendererFor(blend.lower.id).drawSolids(ctx, solids, camX, camY, blurScale);
+  });
+  if (blend.mix > 0 || blend.upper.id !== blend.lower.id) {
+    drawThemeLayer(ctx, blend.mix, () => {
+      rendererFor(blend.upper.id).drawSolids(ctx, solids, camX, camY, blurScale);
+    });
+  }
+}
+
+function drawThemeLayer(ctx: CanvasRenderingContext2D, alpha: number, draw: () => void): void {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  draw();
+  ctx.restore();
 }

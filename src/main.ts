@@ -7,12 +7,15 @@ import { FixedStep } from './core/loop';
 import { SaveStore, type StorageLike } from './core/save';
 import { DEFAULT_SETTINGS, effectsPolicy, replaceBinding, type Settings } from './core/settings';
 import { DebugOverlay } from './debug/overlay';
+import { PistonEntity } from './entities/piston';
+import { TimedDoorEntity } from './entities/timed-door';
 import { Game, type GameStepResult } from './game/game';
 import { Afterimages, effectiveBurstCount, effectiveParticleLimit, Particles, Squash, squashScale } from './render/effects';
 import { drawAfterimages, drawParticles } from './render/effects-draw';
 import { drawCheckpoints, drawEntities } from './render/entity-draw';
 import { drawPlayer } from './render/player-draw';
 import { drawBackground, drawSolids } from './render/room-draw';
+import { themeBlendAt } from './render/themes';
 import { drawHud, drawPrompt, drawStageBanner } from './ui/overlay-draw';
 import { MenuView, type MenuAction } from './ui/menu';
 
@@ -56,6 +59,7 @@ let lastMs = 0;
 let stepsThisFrame = 0;
 let stepCount = 0;
 let presentationTime = 0;
+const machinePhases = new WeakMap<object, string>();
 
 const DUST = '#cfe3a8';
 const SPARK = '#ffe6b0';
@@ -124,7 +128,9 @@ function handleMenuAction(action: MenuAction): void {
 }
 
 function syncAmbience(): void {
-  if (app.screen === 'playing') audio.setAmbience('moss');
+  if (app.screen === 'playing' && app.game) {
+    audio.setAmbience(app.game.currentStage.id === 2 ? 'clockwork' : 'moss');
+  }
   else if (app.game && (app.screen === 'paused' || app.screen === 'settings')) audio.setAmbience('paused');
   else audio.setAmbience('off');
 }
@@ -237,6 +243,23 @@ function onEvents(events: GameStepResult): void {
   if (events.checkpointActivated) audio.play('checkpoint');
 }
 
+function playMachineTransitions(game: Game): void {
+  for (const entity of game.activeEntities(camera.y)) {
+    if (!(entity instanceof PistonEntity) && !(entity instanceof TimedDoorEntity)) continue;
+    const previous = machinePhases.get(entity);
+    const phase = entity.phase;
+    machinePhases.set(entity, phase);
+    if (previous === undefined || previous === phase) continue;
+    if (entity instanceof PistonEntity) {
+      if (phase === 'warning') audio.play('machineWarning');
+      else if (phase === 'extended' && previous === 'warning') audio.play('piston');
+    } else {
+      if (phase === 'closing') audio.play('machineWarning');
+      if (phase === 'closing' || phase === 'opening') audio.play('door');
+    }
+  }
+}
+
 function update(frameDt: number): void {
   presentationTime += frameDt;
   stepsThisFrame = 0;
@@ -254,6 +277,7 @@ function update(frameDt: number): void {
         const events = app.step(i === 0 ? sampled : withoutPresses(sampled), camera.y);
         if (!events) break;
         onEvents(events);
+        playMachineTransitions(game);
         if (events.respawned) resetFrameState();
         if (game.player.onGround && game.player.facing !== facingBefore && Math.abs(game.player.vx) > 150) {
           particles.burst(game.player.x + game.player.w / 2, game.player.y + game.player.h, {
@@ -264,6 +288,7 @@ function update(frameDt: number): void {
         stepCount++;
         if (game.player.dashTimer > 0 && stepCount % 2 === 0) afterimages.add(prevX, prevY);
       }
+      syncAmbience();
     }
     const rx = prevX + (game.player.x - prevX) * loop.alpha;
     const ry = prevY + (game.player.y - prevY) * loop.alpha;
@@ -288,8 +313,9 @@ function render(): void {
   const camX = camera.x + camera.offsetX;
   const camY = camera.y + camera.offsetY;
   const glowScale = settings.reducedEffects ? 0 : blurScale;
-  drawBackground(ctx, camX, camY, app.game?.time ?? presentationTime);
-  drawSolids(ctx, game.world.solids, camX, camY, glowScale);
+  const blend = themeBlendAt(game.world, camY + VIEW_H / 2);
+  drawBackground(ctx, camX, camY, app.game?.time ?? presentationTime, blend, settings.reducedEffects ? 0.5 : 1);
+  drawSolids(ctx, game.world.solids, camX, camY, glowScale, blend);
   if (!app.game) return;
   drawCheckpoints(ctx, game.world.sections, game.run.checkpoint, game.run.mode, camX, camY, glowScale);
   drawEntities(ctx, game.activeEntities(camera.y), camX, camY, game.time, loop.alpha);

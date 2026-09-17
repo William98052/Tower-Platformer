@@ -71,7 +71,36 @@ export class TimedDoorEntity implements Entity {
   }
 
   field(): FieldEffect | null { return null; }
-  draw(): void {}
+  draw(ctx: CanvasRenderingContext2D, _t: number, alpha: number): void {
+    const x = this.previous.x + (this.current.x - this.previous.x) * alpha;
+    const y = this.previous.y + (this.current.y - this.previous.y) * alpha;
+    const phaseProgress: Record<TimedDoorPhase, number> = {
+      open: 0,
+      closing: 0.33,
+      closed: 0.66,
+      opening: 0.88,
+    };
+    const warning = this.phase === 'closing';
+    ctx.save();
+    ctx.strokeStyle = '#675a3e';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(this.def.x - 5, this.def.y - this.def.h - 5, this.def.w + 10, this.def.h * 2 + 10);
+    ctx.strokeStyle = warning ? '#f15a32' : '#c99b47';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(this.def.x + this.def.w / 2, this.def.y - this.def.h - 18, 13, -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * phaseProgress[this.phase]);
+    ctx.stroke();
+    ctx.fillStyle = warning ? '#e6522f' : '#3a3834';
+    ctx.fillRect(x, y, this.def.w, this.def.h);
+    ctx.fillStyle = warning ? '#ffd07a' : '#d0a34b';
+    ctx.fillRect(x, y, 4, this.def.h);
+    for (let seam = 14; seam < this.def.h; seam += 18) {
+      ctx.fillStyle = '#5a5141';
+      ctx.fillRect(x + 5, y + seam, Math.max(0, this.def.w - 10), 2);
+    }
+    ctx.restore();
+  }
   collide(_player: Player): EntityContact { return { kind: 'none' }; }
 
   reset(): void {

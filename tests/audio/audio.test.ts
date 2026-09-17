@@ -9,6 +9,7 @@ class FakeBackend implements AudioBackend {
   ambience: AmbienceState[] = [];
   disposed = false;
   failUnlock = false;
+  failPlay = false;
 
   async unlock() {
     this.unlocks++;
@@ -16,7 +17,10 @@ class FakeBackend implements AudioBackend {
   }
   setMasterGain(value: number) { this.masterGain = value; }
   setSfxGain(value: number) { this.sfxGain = value; }
-  play(event: SoundEvent, detail: number) { this.voices.push({ event, detail }); }
+  play(event: SoundEvent, detail: number) {
+    if (this.failPlay) throw new Error('voice failed');
+    this.voices.push({ event, detail });
+  }
   setAmbience(state: AmbienceState) { this.ambience.push(state); }
   dispose() { this.disposed = true; }
 }
@@ -80,5 +84,44 @@ describe('AudioManager', () => {
     audio.dispose();
     expect(backend.disposed).toBe(true);
     expect(audio.play('uiConfirm')).toBe(false);
+  });
+
+  it('dispatches Clockwork warning and movement voices while SFX are audible', async () => {
+    const backend = new FakeBackend();
+    const audio = new AudioManager(backend);
+    await audio.unlock();
+
+    expect(audio.play('machineWarning')).toBe(true);
+    expect(audio.play('piston')).toBe(true);
+    expect(audio.play('door')).toBe(true);
+    expect(backend.voices).toEqual([
+      { event: 'machineWarning', detail: 0 },
+      { event: 'piston', detail: 0 },
+      { event: 'door', detail: 0 },
+    ]);
+  });
+
+  it('mutes Clockwork voices at either master or SFX zero', async () => {
+    const backend = new FakeBackend();
+    const audio = new AudioManager(backend);
+    await audio.unlock();
+
+    audio.setVolumes(0, 1);
+    expect(audio.play('machineWarning')).toBe(false);
+    audio.setVolumes(1, 0);
+    expect(audio.play('piston')).toBe(false);
+    expect(backend.voices).toEqual([]);
+  });
+
+  it('isolates a Clockwork backend voice failure and stays silent afterward', async () => {
+    const backend = new FakeBackend();
+    const audio = new AudioManager(backend);
+    await audio.unlock();
+    backend.failPlay = true;
+
+    expect(audio.play('door')).toBe(false);
+    backend.failPlay = false;
+    expect(audio.play('machineWarning')).toBe(false);
+    expect(backend.voices).toEqual([]);
   });
 });

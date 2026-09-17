@@ -1,5 +1,15 @@
-export type SoundEvent = 'uiMove' | 'uiConfirm' | 'jump' | 'wallJump' | 'dash' | 'land' | 'checkpoint';
-export type AmbienceState = 'off' | 'paused' | 'moss';
+export type SoundEvent =
+  | 'uiMove'
+  | 'uiConfirm'
+  | 'jump'
+  | 'wallJump'
+  | 'dash'
+  | 'land'
+  | 'checkpoint'
+  | 'machineWarning'
+  | 'piston'
+  | 'door';
+export type AmbienceState = 'off' | 'paused' | 'moss' | 'clockwork';
 
 export interface AudioBackend {
   unlock(): Promise<void>;
@@ -79,6 +89,7 @@ export class BrowserAudioBackend implements AudioBackend {
   private sfx: GainNode | null = null;
   private ambienceGain: GainNode | null = null;
   private ambienceSources: AudioScheduledSourceNode[] = [];
+  private ambienceTheme: 'moss' | 'clockwork' | null = null;
 
   async unlock(): Promise<void> {
     if (!this.context) {
@@ -124,6 +135,17 @@ export class BrowserAudioBackend implements AudioBackend {
         this.tone(440, 560, 0.16, 'sine', 0.07);
         this.tone(660, 780, 0.18, 'sine', 0.06, 0.09);
         break;
+      case 'machineWarning':
+        this.tone(880, 620, 0.055, 'square', 0.035);
+        break;
+      case 'piston':
+        this.tone(82, 42, 0.18, 'sine', 0.14);
+        this.noise(0.09, 0.06, 420);
+        break;
+      case 'door':
+        this.noise(0.2, 0.055, 1100);
+        this.tone(130, 92, 0.18, 'triangle', 0.045);
+        break;
       case 'uiMove': this.tone(330, 350, 0.045, 'sine', 0.025); break;
       case 'uiConfirm': this.tone(480, 620, 0.07, 'sine', 0.04); break;
     }
@@ -138,9 +160,18 @@ export class BrowserAudioBackend implements AudioBackend {
         try { source.stop(now + 0.8); } catch { /* already stopped */ }
       }
       this.ambienceSources = [];
+      this.ambienceTheme = null;
       return;
     }
-    if (this.ambienceSources.length === 0) this.startMossAmbience();
+    if (state !== 'paused' && state !== this.ambienceTheme) {
+      for (const source of this.ambienceSources) {
+        try { source.stop(now + 0.08); } catch { /* already stopped */ }
+      }
+      this.ambienceSources = [];
+      this.ambienceTheme = state;
+      if (state === 'clockwork') this.startClockworkAmbience();
+      else this.startMossAmbience();
+    }
     this.ambienceGain.gain.setTargetAtTime(state === 'paused' ? 0.012 : 0.035, now, 0.25);
   }
 
@@ -149,6 +180,7 @@ export class BrowserAudioBackend implements AudioBackend {
       try { source.stop(); } catch { /* already stopped */ }
     }
     this.ambienceSources = [];
+    this.ambienceTheme = null;
     void this.context?.close();
     this.context = null;
   }
@@ -213,6 +245,40 @@ export class BrowserAudioBackend implements AudioBackend {
     noise.start();
     drone.start();
     this.ambienceSources = [noise, drone];
+  }
+
+  private startClockworkAmbience(): void {
+    const context = this.context;
+    const destination = this.ambienceGain;
+    if (!context || !destination) return;
+    const noiseBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const noise = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+    filter.type = 'lowpass';
+    filter.frequency.value = 310;
+    noise.connect(filter).connect(destination);
+
+    const drone = context.createOscillator();
+    const droneGain = context.createGain();
+    drone.type = 'sawtooth';
+    drone.frequency.value = 43;
+    droneGain.gain.value = 0.045;
+    drone.connect(droneGain).connect(destination);
+
+    const ticks = context.createOscillator();
+    const tickGain = context.createGain();
+    ticks.type = 'square';
+    ticks.frequency.value = 2;
+    tickGain.gain.value = 0.018;
+    ticks.connect(tickGain).connect(destination);
+    noise.start();
+    drone.start();
+    ticks.start();
+    this.ambienceSources = [noise, drone, ticks];
   }
 }
 

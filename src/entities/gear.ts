@@ -48,7 +48,35 @@ export class GearEntity implements Entity {
   }
 
   field(): FieldEffect | null { return null; }
-  draw(): void {}
+  draw(ctx: CanvasRenderingContext2D, _t: number, alpha: number): void {
+    const x = this.previous.x + (this.current.x - this.previous.x) * alpha;
+    const y = this.previous.y + (this.current.y - this.previous.y) * alpha;
+    const centerX = this.def.x + this.def.paddleW / 2;
+    const centerY = this.def.y + this.def.radius + MIN_SOLID_THICKNESS / 2;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(208, 163, 75, 0.48)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([9, 8]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, this.def.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#9a7738';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#dfb553';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#3a3732';
+    ctx.fillRect(x, y, this.def.paddleW, MIN_SOLID_THICKNESS);
+    ctx.fillStyle = '#d0a34b';
+    ctx.fillRect(x, y, this.def.paddleW, 4);
+    for (let tooth = 7; tooth < this.def.paddleW - 5; tooth += 18) {
+      ctx.fillRect(x + tooth, y - 4, 9, 5);
+    }
+    ctx.restore();
+  }
   collide(_player: Player): EntityContact { return { kind: 'none' }; }
 
   reset(): void {
