@@ -122,7 +122,11 @@ describe('validateStage', () => {
     ['wheel radius infinity', { type: 'waterWheel', x: 200, y: 200, radius: Number.POSITIVE_INFINITY, phase: 0, paddleW: 80, paddleH: 20 }, 'water wheel radius'],
     ['wheel paddle width NaN', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 0, paddleW: Number.NaN, paddleH: 20 }, 'water wheel paddle dimensions'],
     ['wheel paddle height infinity', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 0, paddleW: 80, paddleH: Number.POSITIVE_INFINITY }, 'water wheel paddle dimensions'],
-  ] as const)('rejects non-finite %s', (_case, entity, message) => {
+    ['wheel phase NaN', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: Number.NaN, paddleW: 80, paddleH: 20 }, 'water wheel phase'],
+    ['wheel phase infinity', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: Number.POSITIVE_INFINITY, paddleW: 80, paddleH: 20 }, 'water wheel phase'],
+    ['wheel phase negative', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: -0.01, paddleW: 80, paddleH: 20 }, 'water wheel phase'],
+    ['wheel phase one', { type: 'waterWheel', x: 200, y: 200, radius: 60, phase: 1, paddleW: 80, paddleH: 20 }, 'water wheel phase'],
+  ] as const)('rejects invalid %s', (_case, entity, message) => {
     const broken = structuredClone(stage);
     broken.sections[0].entities.push(entity as unknown as EntityDef);
 

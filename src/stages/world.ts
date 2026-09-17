@@ -105,6 +105,9 @@ export function validateStage(stage: StageDef): string[] {
         if (!Number.isFinite(entity.radius) || entity.radius <= 0) {
           errors.push(`${label} water wheel radius must be positive and finite`);
         }
+        if (!Number.isFinite(entity.phase) || entity.phase < 0 || entity.phase >= 1) {
+          errors.push(`${label} water wheel phase must be finite and in [0, 1)`);
+        }
         if (![entity.paddleW, entity.paddleH].every(Number.isFinite)
           || entity.paddleW <= 0 || entity.paddleH <= 0) {
           errors.push(`${label} water wheel paddle dimensions must be positive and finite`);

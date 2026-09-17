@@ -149,18 +149,48 @@ describe('WaterWheelEntity', () => {
       .toEqual(positions);
   });
 
-  it('reports deterministic one-frame deltas and carries a player standing on a paddle', () => {
+  it('reports one-frame deltas in every quadrant and carries a rider on each paddle', () => {
     const wheel = new WaterWheelEntity(wheelDef);
-    const startPaddle = wheel.dynamicSolids()[0];
-    const player = createPlayer(startPaddle.box.x + 20, startPaddle.box.y - 28);
+    const starts = wheel.dynamicSolids();
+    const players = starts.map((paddle) => createPlayer(paddle.box.x + 20, paddle.box.y - 28));
 
     wheel.update(STEP, STEP);
+    const moved = wheel.dynamicSolids();
+    expect(moved.map(({ delta }) => [Math.sign(delta.x), Math.sign(delta.y)]))
+      .toEqual([[1, 1], [-1, 1], [-1, -1], [1, -1]]);
+    moved.forEach((paddle, index) => {
+      expect(paddle.delta.x).toBeCloseTo(paddle.box.x - starts[index].box.x, 9);
+      expect(paddle.delta.y).toBeCloseTo(paddle.box.y - starts[index].box.y, 9);
+      expect(carryStandingPlayer(players[index], paddle)).toBe(true);
+      expect(players[index].x).toBeCloseTo(starts[index].box.x + 20 + paddle.delta.x, 9);
+      expect(players[index].y).toBeCloseTo(starts[index].box.y - 28 + paddle.delta.y, 9);
+    });
+  });
+
+  it('carries a wheel rider through the production Game.step interaction order', () => {
+    const stage: StageDef = {
+      id: 1,
+      name: 'Wheel test',
+      theme: { skyTop: '#000', skyBottom: '#000', platform: '#000', edge: '#fff', accent: '#0ff' },
+      sections: [{
+        id: 0,
+        height: 600,
+        checkpoint: { x: 280, y: 144 },
+        solids: [{ x: 0, y: 560, w: 960, h: 40, surface: 'normal' }],
+        entities: [wheelDef],
+      }],
+    };
+    const game = new Game('normal', stage);
+    const wheel = game.activeEntities(0)[0] as WaterWheelEntity;
+    const start = wheel.dynamicSolids()[0];
+
+    game.step(EMPTY_INPUT, 0);
+
     const moved = wheel.dynamicSolids()[0];
-    expect(moved.delta.x).toBeCloseTo(moved.box.x - startPaddle.box.x, 9);
-    expect(moved.delta.y).toBeCloseTo(moved.box.y - startPaddle.box.y, 9);
-    expect(carryStandingPlayer(player, moved)).toBe(true);
-    expect(player.x).toBeCloseTo(startPaddle.box.x + 20 + moved.delta.x, 9);
-    expect(player.y).toBeCloseTo(startPaddle.box.y - 28 + moved.delta.y, 9);
+    expect(game.player.x).toBeCloseTo(280 + moved.delta.x, 9);
+    expect(game.player.y + game.player.h).toBeCloseTo(moved.box.y, 9);
+    expect(game.player.x).not.toBe(280);
+    expect(start.box.y).toBe(172);
   });
 
   it('does not carry a paddle rider into a blocker', () => {
