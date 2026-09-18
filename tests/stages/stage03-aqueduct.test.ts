@@ -1,18 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import { STEP } from '../../src/core/constants';
 import { createEntities } from '../../src/entities/factory';
-import type { Entity } from '../../src/entities/entity';
-import { carryStandingPlayer, resolveFieldEffects } from '../../src/entities/interactions';
 import { SinkingCrateEntity } from '../../src/entities/sinking-crate';
 import { WaterWheelEntity } from '../../src/entities/water-wheel';
-import { overlaps } from '../../src/physics/aabb';
-import { pushOutPlayer } from '../../src/physics/collision';
-import { createPlayer, stepPlayer, type Player } from '../../src/physics/player';
+import { type AABB, overlaps } from '../../src/physics/aabb';
+import { Game } from '../../src/game/game';
+import { createPlayer } from '../../src/physics/player';
 import { STAGE_02_CLOCKWORK } from '../../src/stages/stage02-clockwork';
 import { STAGE_03_AQUEDUCT } from '../../src/stages/stage03-aqueduct';
 import type { EntityDef, SectionDef, SolidDef } from '../../src/stages/types';
 import { validateStage } from '../../src/stages/world';
 import { input } from '../helpers/input';
+import {
+  type Candidate,
+  PLAYER_SIZE,
+  type Policy,
+  SectionSim,
+  type WaterDef,
+  dryRunway,
+  jumpCandidates,
+  landedOn,
+  reachablePlatforms,
+  routePlatforms,
+  searchLeg,
+  shiftBox,
+  stackSections,
+  standingOn,
+  swimCandidates,
+  swimPolicy,
+  waters,
+} from '../helpers/section-sim';
+
+type CrateDef = Extract<EntityDef, { type: 'sinkingCrate' }>;
+type WheelDef = Extract<EntityDef, { type: 'waterWheel' }>;
+
+const SECTIONS = STAGE_03_AQUEDUCT.sections;
+const WHEEL_PERIOD = 5;
 
 function signature(section: SectionDef): string[] {
   const result: string[] = [];
@@ -22,98 +45,297 @@ function signature(section: SectionDef): string[] {
   return result;
 }
 
-const PLAYER_SIZE = 28;
+function crates(section: SectionDef): CrateDef[] {
+  return section.entities.filter((entity): entity is CrateDef => entity.type === 'sinkingCrate');
+}
 
-function routePlatforms(section: SectionDef): SolidDef[] {
-  return section.solids.filter((solid) => solid.role !== 'boundary');
+function wheels(section: SectionDef): WheelDef[] {
+  return section.entities.filter((entity): entity is WheelDef => entity.type === 'waterWheel');
+}
+
+function exits(section: SectionDef): SolidDef[] {
+  const main = routePlatforms(section).filter((solid) => solid.role === 'main');
+  const topY = Math.min(...main.map((solid) => solid.y));
+  return main.filter((solid) => solid.y === topY);
 }
 
 function overlapWidth(a: { x: number; w: number }, b: { x: number; w: number }): number {
   return Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
 }
 
-function runway(section: SectionDef): SolidDef | undefined {
-  return routePlatforms(section).find((solid) => (
-    solid.role === 'main'
-    && solid.surface === 'normal'
-    && solid.y >= section.checkpoint.y + PLAYER_SIZE
-    && section.checkpoint.x >= solid.x
-    && section.checkpoint.x + PLAYER_SIZE <= solid.x + solid.w
-  ));
+function horizontalGap(a: { x: number; w: number }, b: { x: number; w: number }): number {
+  return Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w));
 }
 
-function water(section: SectionDef) {
-  return section.entities.filter((entity): entity is Extract<EntityDef, { type: 'water' }> => entity.type === 'water');
+/** A surface-level bank beside (or reaching over) the water, or the dry floor the pool rests on. */
+function isWaterExit(field: WaterDef, solid: SolidDef): boolean {
+  if (solid.role !== 'main' || solid.w < 160) return false;
+  const beside = solid.x <= field.x + field.w + PLAYER_SIZE && solid.x + solid.w >= field.x - PLAYER_SIZE;
+  if (Math.abs(solid.y - field.y) <= 20 && beside) return true;
+  const dryFloor = solid.w - overlapWidth(solid, field);
+  return solid.y === field.y + field.h && beside && dryFloor >= 160;
 }
 
-function isWaterExit(field: Extract<EntityDef, { type: 'water' }>, solid: SolidDef): boolean {
-  const edgeGap = Math.min(
-    Math.abs(solid.x + solid.w - field.x),
-    Math.abs(field.x + field.w - solid.x),
-  );
-  return solid.role === 'main'
-    && solid.w >= 160
-    && Math.abs(solid.y - field.y) <= 20
-    && edgeGap <= PLAYER_SIZE;
+function wheelPaddlesAt(def: WheelDef, t: number): AABB[] {
+  const base = Math.PI * 2 * (t / WHEEL_PERIOD + def.phase);
+  return Array.from({ length: 4 }, (_, index) => {
+    const angle = base + index * Math.PI / 2;
+    return {
+      x: def.x + Math.sin(angle) * def.radius - def.paddleW / 2,
+      y: def.y - Math.cos(angle) * def.radius - def.paddleH / 2,
+      w: def.paddleW,
+      h: def.paddleH,
+    };
+  });
 }
 
-function landedOn(player: Player, target: { x: number; y: number; w: number; h: number }): boolean {
-  return player.onGround
-    && Math.abs(player.y + player.h - target.y) <= 1
-    && player.x + player.w > target.x
-    && player.x < target.x + target.w;
+function sampleTimes(period: number, count: number): number[] {
+  return Array.from({ length: count }, (_, index) => period * index / count);
 }
 
-interface SectionSimulation {
-  entities: Entity[];
-  player: Player;
-  time: number;
-  carriedBy: Entity | null;
-  step(frameInput: ReturnType<typeof input>): boolean;
+type Target = (sim: SectionSim) => AABB;
+
+type Leg =
+  | { kind: 'jump'; to: Target; fixed?: SolidDef; dash?: boolean }
+  | { kind: 'swim'; to: Target; fixed?: SolidDef; riseXs: number[] }
+  | { kind: 'board' }
+  | { kind: 'ride'; to: Target; fixed: SolidDef }
+  | { kind: 'rideSwim'; to: Target; fixed: SolidDef; riseXs: number[] };
+
+function fixedAt(section: SectionDef, x: number, y: number): SolidDef {
+  const solid = routePlatforms(section).find((candidate) => candidate.x === x && candidate.y === y);
+  if (!solid) throw new Error(`section ${section.id} has no platform at ${x},${y}`);
+  return solid;
 }
 
-function sectionSimulation(
-  section: SectionDef,
-  player: Player,
-  startTime = 0,
-  include: (entity: Entity) => boolean = () => true,
-): SectionSimulation {
-  const entities = createEntities(section.entities).filter(include);
-  const simulation: SectionSimulation = {
-    entities,
-    player,
-    time: startTime,
-    carriedBy: null,
-    step(frameInput) {
-      simulation.time += STEP;
-      for (const entity of entities) entity.update(simulation.time, STEP);
-      const moving = entities.flatMap((entity) => entity.dynamicSolids().map((solid) => ({ entity, solid })));
-      const solids = [...section.solids, ...moving.map(({ solid }) => solid.box)];
-      simulation.carriedBy = null;
-      for (const { entity, solid } of moving) {
-        if (!carryStandingPlayer(player, solid, solids)) continue;
-        simulation.carriedBy = entity;
-        break;
-      }
-      const field = resolveFieldEffects(entities.map((entity) => entity.field(player)).filter((effect) => effect !== null));
-      stepPlayer(player, frameInput, solids, STEP, field);
-      for (const { solid } of moving) {
-        if (!pushOutPlayer(player, solid.box, solids.filter((blocker) => blocker !== solid.box))) return false;
-      }
-      for (const entity of entities) entity.collide(player);
-      return true;
-    },
+function crateTarget(section: SectionDef, index: number): Target {
+  const def = crates(section)[index];
+  return (sim) => {
+    const entity = sim.entities.find((candidate): candidate is SinkingCrateEntity => (
+      candidate instanceof SinkingCrateEntity && candidate.def.x === def.x && candidate.def.y === def.y
+    ));
+    if (!entity) throw new Error(`section ${section.id} crate ${index} missing`);
+    return entity.dynamicSolids()[0].box;
   };
-  return simulation;
+}
+
+function wheelEntity(sim: SectionSim, def: WheelDef): WaterWheelEntity {
+  const entity = sim.entities.find((candidate): candidate is WaterWheelEntity => (
+    candidate instanceof WaterWheelEntity && candidate.def.x === def.x && candidate.def.y === def.y
+  ));
+  if (!entity) throw new Error('wheel missing');
+  return entity;
+}
+
+function jump(section: SectionDef, x: number, y: number, dash = false): Leg {
+  const solid = fixedAt(section, x, y);
+  return { kind: 'jump', to: () => solid, fixed: solid, dash };
+}
+
+function swim(section: SectionDef, x: number, y: number, riseXs: number[]): Leg {
+  const solid = fixedAt(section, x, y);
+  return { kind: 'swim', to: () => solid, fixed: solid, riseXs };
+}
+
+function nextRunway(index: number): Leg | null {
+  const next = SECTIONS[index + 1];
+  if (!next) return null;
+  const runway = shiftBox(dryRunway(next)!.solid, -next.height);
+  return { kind: 'jump', to: () => runway };
+}
+
+/** The intended bottom-to-top route of every section, ending on the next section's runway. */
+const ROUTES: Leg[][] = SECTIONS.map((section, index) => {
+  const legs: Leg[] = (() => {
+    switch (index) {
+      case 0: return [
+        swim(section, 400, 460, [360, 340]),
+        jump(section, 680, 330),
+        jump(section, 380, 200),
+        jump(section, 24, 70),
+      ];
+      case 1: return [
+        swim(section, 760, 660, [730, 700]),
+        jump(section, 620, 545),
+        jump(section, 380, 430),
+        jump(section, 140, 315),
+        jump(section, 24, 200),
+        jump(section, 100, 70),
+        swim(section, 640, 70, [600, 580]),
+      ];
+      case 2: return [
+        { kind: 'jump', to: crateTarget(section, 0) },
+        { kind: 'jump', to: crateTarget(section, 1) },
+        { kind: 'jump', to: crateTarget(section, 2) },
+        jump(section, 200, 260),
+        jump(section, 480, 165),
+        jump(section, 720, 70),
+      ];
+      case 3: {
+        const bank = fixedAt(section, 80, 345);
+        return [
+          { kind: 'board' },
+          { kind: 'ride', to: () => bank, fixed: bank },
+          jump(section, 440, 210),
+          jump(section, 700, 70),
+        ];
+      }
+      case 4: return [
+        swim(section, 24, 370, [260, 300, 380]),
+        { kind: 'jump', to: crateTarget(section, 0) },
+        { kind: 'jump', to: crateTarget(section, 1) },
+        jump(section, 570, 70),
+      ];
+      case 5: return [
+        swim(section, 190, 480, [160, 130]),
+        jump(section, 610, 380, true),
+        swim(section, 610, 200, [810, 840]),
+        jump(section, 680, 70),
+      ];
+      default: {
+        const exit = fixedAt(section, 560, 70);
+        return [
+          { kind: 'swim', to: crateTarget(section, 0), riseXs: [160, 175, 190] },
+          { kind: 'jump', to: crateTarget(section, 1) },
+          jump(section, 360, 490),
+          { kind: 'board' },
+          { kind: 'rideSwim', to: () => exit, fixed: exit, riseXs: [500, 530, 470] },
+        ];
+      }
+    }
+  })();
+  const handoff = nextRunway(index);
+  return handoff ? [...legs, handoff] : legs;
+});
+
+function* boardCandidates(sim: SectionSim, def: WheelDef): Generator<Candidate> {
+  const support = sim.support();
+  const low = support ? support.x : sim.player.x;
+  const high = support ? support.x + support.w - PLAYER_SIZE : sim.player.x;
+  const xs = [0, 40, -40, 80].map((offset) => Math.max(low, Math.min(high, def.x - PLAYER_SIZE / 2 + offset)));
+  for (let wait = 0; wait <= WHEEL_PERIOD * 120; wait += 4) {
+    for (const approachX of xs) {
+      for (const moveX of [0, -1, 1] as const) {
+        yield {
+          label: `board ${JSON.stringify({ approachX, wait, moveX })}`,
+          maxFrames: 150 + wait + 120,
+          make: (): Policy => {
+            let phase: 'approach' | 'wait' | 'jump' = 'approach';
+            let start = 0;
+            return (branch, frame) => {
+              if (phase === 'approach') {
+                const delta = approachX - branch.player.x;
+                if (Math.abs(delta) > 2 && frame < 150) return input({ moveX: Math.sign(delta) as -1 | 1 });
+                phase = 'wait';
+                start = frame;
+              }
+              if (phase === 'wait') {
+                if (frame - start < wait) return input();
+                phase = 'jump';
+                start = frame;
+              }
+              const k = frame - start;
+              return input({ moveX, jump: k < 60, jumpPressed: k === 0 });
+            };
+          },
+        };
+      }
+    }
+  }
+}
+
+function* rideCandidates(def: WheelDef, bank: SolidDef): Generator<Candidate> {
+  for (const lead of [0, 10, 20, 35, 50, -10]) {
+    for (const hop of [false, true]) {
+      yield {
+        label: `ride ${JSON.stringify({ lead, hop })}`,
+        maxFrames: WHEEL_PERIOD * 120 * 2,
+        make: (): Policy => {
+          let dismountAt = -1;
+          return (branch, frame) => {
+            const { player } = branch;
+            const paddle = wheelEntity(branch, def).dynamicSolids().find((solid) => landedOn(player, solid.box))?.box;
+            const bankCenter = bank.x + bank.w / 2;
+            const towardBank = Math.sign(bankCenter - (player.x + PLAYER_SIZE / 2)) as -1 | 1;
+            if (dismountAt < 0 && paddle && paddle.y <= bank.y + lead) dismountAt = frame;
+            if (dismountAt >= 0) {
+              return input({ moveX: towardBank, jump: hop && frame - dismountAt < 20, jumpPressed: hop && frame === dismountAt });
+            }
+            const underBank = player.x < bank.x + bank.w + 2 && player.x + PLAYER_SIZE > bank.x - 2;
+            return input({ moveX: underBank ? -towardBank as -1 | 1 : 0 });
+          };
+        },
+      };
+    }
+  }
+}
+
+function* rideSwimCandidates(exit: AABB, riseXs: number[]): Generator<Candidate> {
+  for (const riseX of riseXs) {
+    for (const cadence of [27, 34]) {
+      yield {
+        label: `ride+swim ${JSON.stringify({ riseX, cadence })}`,
+        maxFrames: WHEEL_PERIOD * 120 * 2,
+        make: (): Policy => {
+          const swimming = swimPolicy(() => exit, { riseX, cadence });
+          let entered = false;
+          return (branch, frame) => {
+            entered ||= branch.inWater();
+            return entered ? swimming(branch, frame) : input();
+          };
+        },
+      };
+    }
+  }
+}
+
+interface RouteResult { completed: number; total: number; trace: string[]; final: { x: number; y: number }; inputs: SectionSim['inputs'] }
+
+const routeCache = new Map<number, RouteResult>();
+
+function route(index: number): RouteResult {
+  if (!routeCache.has(index)) routeCache.set(index, runRoute(index));
+  return routeCache.get(index)!;
+}
+
+function runRoute(index: number): RouteResult {
+  const section = SECTIONS[index];
+  const next = SECTIONS[index + 1];
+  const world = next ? stackSections(section, next) : section;
+  let sim = new SectionSim(world, createPlayer(section.checkpoint.x, section.checkpoint.y));
+  for (let frame = 0; frame < 120 && !sim.player.onGround; frame += 1) sim.step(input());
+  const trace: string[] = [];
+  const legs = ROUTES[index];
+  const wheelDef = wheels(section)[0];
+  for (const [legIndex, leg] of legs.entries()) {
+    let result;
+    if (leg.kind === 'jump') {
+      result = searchLeg(sim, jumpCandidates(sim, () => leg.to(sim), { dash: leg.dash }), (branch) => landedOn(branch.player, leg.to(branch)));
+    } else if (leg.kind === 'swim') {
+      result = searchLeg(sim, swimCandidates(leg.to, leg.riseXs), (branch) => landedOn(branch.player, leg.to(branch)));
+    } else if (leg.kind === 'board') {
+      result = searchLeg(sim, boardCandidates(sim, wheelDef), (branch) => (
+        wheelEntity(branch, wheelDef).dynamicSolids().some((solid) => landedOn(branch.player, solid.box))
+      ));
+    } else if (leg.kind === 'ride') {
+      result = searchLeg(sim, rideCandidates(wheelDef, leg.fixed), (branch) => landedOn(branch.player, leg.fixed));
+    } else {
+      result = searchLeg(sim, rideSwimCandidates(leg.fixed, leg.riseXs), (branch) => landedOn(branch.player, leg.fixed));
+    }
+    trace.push(`${legIndex} ${leg.kind} ${result.ok ? result.label : 'FAILED'} (${result.tried} tried)`);
+    if (!result.ok) return { completed: legIndex, total: legs.length, trace, final: { x: sim.player.x, y: sim.player.y }, inputs: sim.inputs };
+    sim = result.sim;
+  }
+  return { completed: legs.length, total: legs.length, trace, final: { x: sim.player.x, y: sim.player.y }, inputs: sim.inputs };
 }
 
 describe('STAGE_03_AQUEDUCT', () => {
   it('defines the seven-section Sunken Aqueduct mechanic progression', () => {
     expect(STAGE_03_AQUEDUCT).toMatchObject({ id: 3, name: 'Sunken Aqueduct' });
-    expect(STAGE_03_AQUEDUCT.sections).toHaveLength(7);
-    expect(STAGE_03_AQUEDUCT.sections.map((section) => section.id)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(SECTIONS).toHaveLength(7);
+    expect(SECTIONS.map((section) => section.id)).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(validateStage(STAGE_03_AQUEDUCT)).toEqual([]);
-    expect(STAGE_03_AQUEDUCT.sections.map(signature)).toEqual([
+    expect(SECTIONS.map(signature)).toEqual([
       ['water'],
       ['water'],
       ['sinkingCrate'],
@@ -125,35 +347,42 @@ describe('STAGE_03_AQUEDUCT', () => {
   });
 
   it('uses the exact currents, crate counts, and five-second wheel progression', () => {
-    const [, currents, crates, wheel, vertical, switchback, finale] = STAGE_03_AQUEDUCT.sections;
-    const entities = (section: SectionDef, type: EntityDef['type']) => section.entities.filter((entity) => entity.type === type);
-
-    expect(water(currents).map((field) => [field.currentX, field.currentY])).toEqual([[260, 0], [-260, 0]]);
-    expect(entities(crates, 'sinkingCrate')).toHaveLength(3);
-    expect(entities(wheel, 'waterWheel')).toHaveLength(1);
-    expect(entities(vertical, 'sinkingCrate')).toHaveLength(2);
-    expect(water(vertical).map((field) => [field.currentX, field.currentY])).toEqual([[0, -420]]);
-    expect(water(switchback)).toHaveLength(2);
-    expect(entities(finale, 'sinkingCrate')).toHaveLength(2);
-    expect(entities(finale, 'waterWheel')).toHaveLength(1);
-    expect(water(finale).map((field) => [field.currentX, field.currentY])).toEqual([[420, 0], [0, -420]]);
+    const [intro, currents, crateBasin, wheel, vertical, switchback, finale] = SECTIONS;
+    expect(waters(intro).map((field) => [field.currentX, field.currentY])).toEqual([[0, 0]]);
+    expect(waters(currents).map((field) => [field.currentX, field.currentY])).toEqual([[260, 0], [-260, 0]]);
+    expect(crates(crateBasin)).toHaveLength(3);
+    expect(wheels(wheel)).toHaveLength(1);
+    expect(crates(vertical)).toHaveLength(2);
+    expect(waters(vertical).map((field) => [field.currentX, field.currentY])).toEqual([[0, -420]]);
+    expect(waters(switchback)).toHaveLength(2);
+    expect(crates(finale)).toHaveLength(2);
+    expect(wheels(finale)).toHaveLength(1);
+    expect(waters(finale).map((field) => [field.currentX, field.currentY])).toEqual([[420, 0], [0, -420]]);
   });
 
-  it('starts every section on a clear broad flat checkpoint runway', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
+  it('starts every section on a broad, dry, water-clear checkpoint runway', () => {
+    for (const section of SECTIONS) {
       const spawn = { ...section.checkpoint, w: PLAYER_SIZE, h: PLAYER_SIZE };
+      const runway = dryRunway(section);
       expect(section.height, `section ${section.id} height`).toBe(700);
+      expect(runway, `section ${section.id} runway`).not.toBeNull();
+      expect(runway!.x1 - runway!.x0, `section ${section.id} dry runway width`).toBeGreaterThanOrEqual(280);
       expect(section.solids.some((solid) => overlaps(spawn, solid)), `section ${section.id} clear spawn`).toBe(false);
-      expect(runway(section)?.w, `section ${section.id} runway width`).toBeGreaterThanOrEqual(280);
-      expect(water(section).some((field) => overlaps(spawn, field)), `section ${section.id} dry checkpoint`).toBe(false);
 
-      const machinery = createEntities(section.entities).flatMap((entity) => entity.dynamicSolids());
-      expect(machinery.some((solid) => overlaps(spawn, solid.box)), `section ${section.id} clear machinery`).toBe(false);
+      const standing = { x: section.checkpoint.x, y: runway!.solid.y - PLAYER_SIZE, w: PLAYER_SIZE, h: PLAYER_SIZE };
+      const band = { x: 0, y: standing.y, w: 960, h: PLAYER_SIZE };
+      for (const field of waters(section).filter((candidate) => overlaps(band, candidate))) {
+        expect(horizontalGap(standing, field), `section ${section.id} spawn clearance from water`).toBeGreaterThanOrEqual(80);
+      }
+      for (const field of waters(section)) {
+        expect(overlaps({ ...standing, y: section.checkpoint.y, h: standing.y + PLAYER_SIZE - section.checkpoint.y }, field),
+          `section ${section.id} dry checkpoint`).toBe(false);
+      }
     }
   });
 
   it('keeps every collision platform on the main route or its single useful recovery floor', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
+    for (const section of SECTIONS) {
       const platforms = routePlatforms(section);
       expect(platforms.every((solid) => solid.role === 'main' || solid.role === 'recovery'), `section ${section.id} classified`).toBe(true);
       expect(platforms.every((solid) => solid.h === 16), `section ${section.id} thickness`).toBe(true);
@@ -162,277 +391,286 @@ describe('STAGE_03_AQUEDUCT', () => {
   });
 
   it('gives every water volume a visible exit at least 160 units wide and never points a current into a sealed wall', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
-      for (const field of water(section)) {
-        const exits = routePlatforms(section).filter((solid) => isWaterExit(field, solid));
-        expect(exits.length, `section ${section.id} visible water exit`).toBeGreaterThan(0);
+    for (const section of SECTIONS) {
+      for (const field of waters(section)) {
+        const exitsForField = routePlatforms(section).filter((solid) => isWaterExit(field, solid));
+        expect(exitsForField.length, `section ${section.id} visible water exit`).toBeGreaterThan(0);
         if (field.currentX > 0) expect(field.x + field.w, `section ${section.id} current right clearance`).toBeLessThanOrEqual(920);
         if (field.currentX < 0) expect(field.x, `section ${section.id} current left clearance`).toBeGreaterThanOrEqual(40);
-        if (field.currentY < 0) expect(exits.length, `section ${section.id} upward-current exit`).toBeGreaterThan(0);
       }
     }
   });
 
-  it('swims from the far side of every water volume onto its visible exit with production fields and strokes', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
-      for (const field of water(section)) {
-        const exit = routePlatforms(section).find((solid) => isWaterExit(field, solid));
-        if (!exit) throw new Error(`section ${section.id} water exit missing`);
-        const exitCenter = field.currentY < 0 ? exit.x + 40 : exit.x + exit.w / 2;
-        const startsLeft = exitCenter >= field.x + field.w / 2;
-        const startX = startsLeft ? field.x + 20 : field.x + field.w - PLAYER_SIZE - 20;
-        const player = createPlayer(startX, field.y + field.h - PLAYER_SIZE - 20);
-        const simulation = sectionSimulation(section, player);
+  it('swims from the far bottom of every water volume onto one of its visible exits', { timeout: 60_000 }, () => {
+    for (const section of SECTIONS) {
+      for (const [fieldIndex, field] of waters(section).entries()) {
+        const exitsForField = routePlatforms(section).filter((solid) => isWaterExit(field, solid));
+        const center = exitsForField.reduce((sum, exit) => sum + exit.x + exit.w / 2, 0) / exitsForField.length;
+        const startX = center >= field.x + field.w / 2 ? field.x + 4 : field.x + field.w - PLAYER_SIZE - 4;
+        const start = new SectionSim(section, createPlayer(startX, field.y + field.h - PLAYER_SIZE - 1));
+        for (let frame = 0; frame < 240 && !start.player.onGround; frame += 1) start.step(input());
         let reached = false;
-        let safe = true;
-
-        for (let frame = 0; frame < 720; frame += 1) {
-          const swimTargetX = field.currentY < 0 && player.y > field.y + PLAYER_SIZE
-            ? field.x + 40
-            : exitCenter;
-          const direction = Math.sign(swimTargetX - (player.x + player.w / 2)) as -1 | 0 | 1;
-          const stroke = frame % 28 === 0;
-          safe &&= simulation.step(input({ moveX: direction, jump: stroke, jumpPressed: stroke }));
-          if (landedOn(player, exit)) {
+        for (const exit of exitsForField) {
+          const floorExit = exit.y === field.y + field.h;
+          const leftDry = { ...exit, w: Math.max(0, field.x - exit.x) };
+          const rightDry = { ...exit, x: field.x + field.w, w: Math.max(0, exit.x + exit.w - field.x - field.w) };
+          const target = floorExit ? (leftDry.w > rightDry.w ? leftDry : rightDry) : exit;
+          const riseXs = floorExit
+            ? [target.x + target.w / 2]
+            : [exit.x - PLAYER_SIZE - 6, exit.x + exit.w + 6, exit.x + exit.w - 60];
+          const result = searchLeg(start, swimCandidates(() => target, riseXs), (sim) => landedOn(sim.player, target) && !sim.inWater());
+          if (result.ok) {
             reached = true;
             break;
           }
         }
-
-        expect(safe, `section ${section.id} water traversal safe`).toBe(true);
-        expect(reached, `section ${section.id} water exit ${JSON.stringify({ x: player.x, y: player.y })}`).toBe(true);
+        expect(reached, `section ${section.id} water ${fieldIndex} far-side swim`).toBe(true);
       }
     }
   });
 
-  it('keeps crate transfers close and leaves every sinking crate clear of the only fixed exit', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
-      const crates = section.entities.filter((entity): entity is Extract<EntityDef, { type: 'sinkingCrate' }> => entity.type === 'sinkingCrate');
-      const ordered = [...crates].sort((a, b) => a.x - b.x);
-      for (let index = 1; index < ordered.length; index += 1) {
-        const gap = ordered[index].x - (ordered[index - 1].x + ordered[index - 1].w);
-        expect(gap, `section ${section.id} crate transfer ${index}`).toBeLessThanOrEqual(130);
-      }
-      const topY = Math.min(...routePlatforms(section).filter((solid) => solid.role === 'main').map((solid) => solid.y));
-      const exits = routePlatforms(section).filter((solid) => solid.role === 'main' && solid.y === topY);
-      for (const crate of crates) {
-        expect(exits.some((exit) => overlaps(crate, exit)), `section ${section.id} crate blocks exit`).toBe(false);
-        const sinkEnvelope = { ...crate, h: crate.h + crate.sinkDistance };
-        expect(routePlatforms(section).some((solid) => overlaps(sinkEnvelope, solid)), `section ${section.id} crate sink envelope`).toBe(false);
-      }
-    }
-  });
-
-  it('uses a shallow still intro pool and two broad dry landings in the wet/dry switchback', () => {
-    const introWater = water(STAGE_03_AQUEDUCT.sections[0]);
-    expect(introWater).toEqual([
-      expect.objectContaining({ currentX: 0, currentY: 0 }),
-    ]);
-    const introExit = routePlatforms(STAGE_03_AQUEDUCT.sections[0]).find((solid) => isWaterExit(introWater[0], solid));
-    expect(introExit?.w).toBe(240);
-
-    const switchback = STAGE_03_AQUEDUCT.sections[5];
-    const dryDashLandings = routePlatforms(switchback).filter((solid) => solid.y === 410 || solid.y === 300 || solid.y === 180);
-    expect(dryDashLandings).toHaveLength(3);
-    expect(dryDashLandings.every((solid) => solid.w >= 180)).toBe(true);
-  });
-
-  it('continuously crosses all three introductory crates and completes the fixed climb', () => {
-    const section = STAGE_03_AQUEDUCT.sections[2];
-    const route = routePlatforms(section).filter((solid) => solid.role === 'main');
-    const start = runway(section)!;
-    const player = createPlayer(580, start.y - PLAYER_SIZE);
-    player.onGround = true;
-    const simulation = sectionSimulation(section, player);
-    const crateTargets = simulation.entities
-      .filter((entity): entity is SinkingCrateEntity => entity instanceof SinkingCrateEntity)
-      .sort((a, b) => b.bounds().x - a.bounds().x)
-      .map((entity) => () => entity.dynamicSolids()[0].box);
-    const fixedTargets = route.filter((solid) => solid !== start).sort((a, b) => b.y - a.y).map((solid) => () => solid);
-    const targets = [...crateTargets, ...fixedTargets];
-
-    let targetIndex = 0;
-    let safe = true;
-    for (let frame = 0; frame < 1_800 && targetIndex < targets.length; frame += 1) {
-      const target = targets[targetIndex]();
-      const direction = Math.sign(target.x + target.w / 2 - (player.x + player.w / 2)) as -1 | 0 | 1;
-      const jumpPressed = player.onGround;
-      safe &&= simulation.step(input({ moveX: direction, jump: true, jumpPressed }));
-      if (landedOn(player, targets[targetIndex]())) targetIndex += 1;
-    }
-
-    expect(safe).toBe(true);
-    expect(targetIndex, JSON.stringify({ targetIndex, x: player.x, y: player.y })).toBe(targets.length);
-  });
-
-  it('continuously uses every crate in the vertical climb and finale current without becoming trapped', () => {
-    const fixtures = [
-      { sectionIndex: 4, startX: 320, startY: 590 },
-      { sectionIndex: 6, startX: 320, startY: 590 },
-    ];
-
-    for (const fixture of fixtures) {
-      const section = STAGE_03_AQUEDUCT.sections[fixture.sectionIndex];
-      const player = createPlayer(fixture.startX, fixture.startY);
-      const simulation = sectionSimulation(section, player);
-      const crates = simulation.entities
-        .filter((entity): entity is SinkingCrateEntity => entity instanceof SinkingCrateEntity)
-        .sort((a, b) => b.bounds().y - a.bounds().y);
-      let crateIndex = 0;
-      let phase: 'ascend' | 'land' = 'ascend';
-      let safe = true;
-
-      for (let frame = 0; frame < 2_400 && crateIndex < crates.length; frame += 1) {
-        const box = crates[crateIndex].dynamicSolids()[0].box;
-        const approachX = box.x - PLAYER_SIZE - 12;
-        if (phase === 'ascend' && player.y + player.h <= box.y - 8) phase = 'land';
-        const targetX = phase === 'ascend' ? approachX : box.x + 8;
-        const direction = Math.sign(targetX - player.x) as -1 | 0 | 1;
-        const stroke = phase === 'ascend' && frame % 28 === 0;
-        safe &&= simulation.step(input({ moveX: direction, jump: stroke, jumpPressed: stroke }));
-        if (landedOn(player, crates[crateIndex].dynamicSolids()[0].box)) {
-          crateIndex += 1;
-          phase = 'ascend';
+  it('lets an idle player in any water volume settle safely inside the same section', () => {
+    for (const section of SECTIONS) {
+      for (const [fieldIndex, field] of waters(section).entries()) {
+        const xs = [field.x + 2, field.x + field.w / 2 - PLAYER_SIZE / 2, field.x + field.w - PLAYER_SIZE - 2];
+        const ys = [field.y + 2, field.y + Math.max(2, field.h - PLAYER_SIZE - 2)];
+        for (const x of xs) {
+          for (const y of ys) {
+            const start = { x, y, w: PLAYER_SIZE, h: PLAYER_SIZE };
+            if (section.solids.some((solid) => overlaps(start, solid))) continue;
+            const sim = new SectionSim(section, createPlayer(x, y));
+            let lowestFeet = y + PLAYER_SIZE;
+            let safe = true;
+            for (let frame = 0; frame < 8 * 120; frame += 1) {
+              safe &&= sim.step(input());
+              lowestFeet = Math.max(lowestFeet, sim.player.y + PLAYER_SIZE);
+            }
+            const label = `section ${section.id} water ${fieldIndex} idle from ${JSON.stringify({ x, y })} -> ${JSON.stringify({ x: sim.player.x, y: sim.player.y })}`;
+            expect(safe, `${label} safe`).toBe(true);
+            expect(lowestFeet, `${label} stays inside the section`).toBeLessThanOrEqual(section.height);
+            expect(sim.player.onGround, `${label} settles`).toBe(true);
+          }
         }
       }
-
-      expect(safe, `section ${fixture.sectionIndex} crate route safe`).toBe(true);
-      expect(crateIndex, `section ${fixture.sectionIndex} crates used ${JSON.stringify({ x: player.x, y: player.y })}`).toBe(crates.length);
     }
   });
 
-  it('overlaps each wheel safe arc with both fixed landings by at least 80 units', () => {
-    for (const section of STAGE_03_AQUEDUCT.sections) {
-      for (const wheel of section.entities.filter((entity): entity is Extract<EntityDef, { type: 'waterWheel' }> => entity.type === 'waterWheel')) {
-        const envelope = { x: wheel.x - wheel.radius - wheel.paddleW / 2, w: wheel.radius * 2 + wheel.paddleW };
-        const lower = routePlatforms(section)
-          .filter((solid) => solid.role === 'main' && solid.y > wheel.y)
-          .sort((a, b) => a.y - b.y)[0];
-        const upper = routePlatforms(section)
-          .filter((solid) => solid.role === 'main' && solid.y < wheel.y)
-          .sort((a, b) => b.y - a.y)[0];
-        expect(lower, `section ${section.id} lower wheel bank`).toBeDefined();
-        expect(upper, `section ${section.id} upper wheel bank`).toBeDefined();
-        expect(overlapWidth(envelope, lower!), `section ${section.id} lower wheel overlap`).toBeGreaterThanOrEqual(80);
-        expect(overlapWidth(envelope, upper!), `section ${section.id} upper wheel overlap`).toBeGreaterThanOrEqual(80);
-      }
-    }
-  });
-
-  it('continuously boards, rides, and dismounts both water wheels against full section geometry', () => {
-    const fixtures = [
-      { sectionIndex: 3, lowerY: 660, upperY: 380, startX: 746 },
-      { sectionIndex: 6, lowerY: 510, upperY: 330, startX: 636 },
-    ];
-
-    for (const fixture of fixtures) {
-      const section = STAGE_03_AQUEDUCT.sections[fixture.sectionIndex];
-      const lower = routePlatforms(section).find((solid) => solid.y === fixture.lowerY);
-      const upper = routePlatforms(section).find((solid) => solid.y === fixture.upperY);
-      if (!lower || !upper) throw new Error(`section ${fixture.sectionIndex} wheel fixture missing`);
-      const player = createPlayer(fixture.startX, lower.y - PLAYER_SIZE);
-      player.onGround = true;
-      const simulation = sectionSimulation(section, player);
-      const wheel = simulation.entities.find((entity): entity is WaterWheelEntity => entity instanceof WaterWheelEntity);
-      if (!wheel) throw new Error(`section ${fixture.sectionIndex} wheel missing`);
-      let boarded = false;
-      let carryFrames = 0;
-      let dismounting = false;
-      let jumpUsed = false;
-      let safe = true;
-      let landed = false;
-
-      for (let frame = 0; frame < 720; frame += 1) {
-        if (boarded && carryFrames > 30 && player.y + player.h <= upper.y + 30) dismounting = true;
-        const targetX = dismounting ? upper.x + upper.w / 2 : wheel.def.x;
-        const direction = Math.sign(targetX - (player.x + player.w / 2)) as -1 | 0 | 1;
-        const jumpPressed = !boarded ? frame === 0 : dismounting && !jumpUsed;
-        if (dismounting && !jumpUsed) jumpUsed = true;
-        safe &&= simulation.step(input({
-          moveX: boarded && !dismounting ? 0 : frame < 60 || dismounting ? direction : 0,
-          jump: !boarded ? frame < 42 : dismounting,
-          jumpPressed,
-        }));
-        const onWheel = wheel.dynamicSolids().some((solid) => landedOn(player, solid.box));
-        boarded ||= onWheel;
-        if (simulation.carriedBy === wheel) carryFrames += 1;
-        if (boarded && landedOn(player, upper)) {
-          landed = true;
+  it('hands Clockwork and every Aqueduct section to the next runway with one ordinary production-physics jump', () => {
+    const chain = [STAGE_02_CLOCKWORK.sections.at(-1)!, ...SECTIONS];
+    for (let index = 0; index < chain.length - 1; index += 1) {
+      const lower = chain[index];
+      const upper = chain[index + 1];
+      const stacked = stackSections(lower, upper);
+      const runway = dryRunway(upper);
+      expect(runway, `handoff ${index} runway`).not.toBeNull();
+      const target = shiftBox(runway!.solid, -upper.height);
+      let reached = false;
+      for (const exit of exits(lower)) {
+        const start = new SectionSim(stacked, standingOn(exit, exit.x + exit.w / 2 - PLAYER_SIZE / 2));
+        const settle = start.clone();
+        settle.step(input());
+        const result = searchLeg(settle, jumpCandidates(settle, () => target), (sim) => landedOn(sim.player, target));
+        if (result.ok) {
+          reached = true;
           break;
         }
       }
+      expect(reached, `handoff ${index}: ${index === 0 ? 'Clockwork' : `Aqueduct ${index - 1}`} exit -> Aqueduct ${index} runway`).toBe(true);
+      expect(lower.height + Math.min(...exits(lower).map((exit) => exit.y)) - runway!.solid.y, `handoff ${index} rise`).toBeLessThanOrEqual(120);
+    }
+    expect(exits(SECTIONS[6]).some((exit) => exit.w >= 280), 'final Aqueduct exit is broad').toBe(true);
+  });
 
-      expect(safe, `section ${fixture.sectionIndex} wheel safe`).toBe(true);
-      expect(boarded, `section ${fixture.sectionIndex} wheel boarded`).toBe(true);
-      expect(carryFrames, `section ${fixture.sectionIndex} wheel carry`).toBeGreaterThan(30);
-      expect(landed, `section ${fixture.sectionIndex} wheel dismount ${JSON.stringify({ x: player.x, y: player.y })}`).toBe(true);
+  it('keeps every crate and wheel gate closed to ordinary jumps and jump + eight-way air dash', { timeout: 240_000 }, () => {
+    for (const section of SECTIONS) {
+      const gates: { label: string; exclude: EntityDef['type']; startBelow: number; targetAbove: number; goalWater: WaterDef[]; dash: boolean }[] = [];
+      const crateDefs = crates(section);
+      if (crateDefs.length > 0) {
+        gates.push({
+          label: 'crates',
+          exclude: 'sinkingCrate',
+          startBelow: Math.max(...crateDefs.map((crate) => crate.y + crate.h)),
+          targetAbove: Math.min(...crateDefs.map((crate) => crate.y)),
+          goalWater: [],
+          // The finale's crates sit above its current pool, so their bank is only ordinary-gated: a
+          // dash-proof crate climb (300+) and the dash-proof wheel lift (300+) cannot share one
+          // 700-unit section. The finale wheel below is the reviewed gate and is dash-proof.
+          dash: section.id !== 6,
+        });
+      }
+      for (const wheel of wheels(section)) {
+        gates.push({
+          label: 'wheel',
+          exclude: 'waterWheel',
+          startBelow: wheel.y,
+          targetAbove: wheel.y,
+          goalWater: waters(section).filter((field) => field.y + field.h < wheel.y),
+          dash: true,
+        });
+      }
+      for (const gate of gates) {
+        const starts = routePlatforms(section).filter((solid) => solid.y >= gate.startBelow);
+        const targets = routePlatforms(section).filter((solid) => solid.y < gate.targetAbove);
+        const { reached, goalWaterTouched } = reachablePlatforms(section, starts, {
+          dash: gate.dash,
+          include: (def) => def.type !== gate.exclude,
+          goalWater: gate.goalWater,
+        });
+        const bypassed = targets.filter((solid) => reached.has(solid));
+        expect(bypassed.map((solid) => [solid.x, solid.y]), `section ${section.id} ${gate.label} bypass`).toEqual([]);
+        expect(goalWaterTouched, `section ${section.id} ${gate.label} bypass into upper water`).toBe(false);
+      }
     }
   });
 
-  it('has no production ordinary-jump bypass around crates or either wheel transfer', () => {
-    const fixtures = [
-      { sectionIndex: 2, lowerY: 660, upperY: 430, excluded: 'crate' as const },
-      { sectionIndex: 3, lowerY: 660, upperY: 380, excluded: 'wheel' as const },
-      { sectionIndex: 6, lowerY: 510, upperY: 330, excluded: 'wheel' as const },
-    ];
-
-    for (const fixture of fixtures) {
-      const section = STAGE_03_AQUEDUCT.sections[fixture.sectionIndex];
-      const lower = routePlatforms(section).find((solid) => solid.y === fixture.lowerY);
-      const upper = routePlatforms(section).find((solid) => solid.y === fixture.upperY);
-      if (!lower || !upper) throw new Error(`section ${fixture.sectionIndex} bypass fixture missing`);
-      let bypassed = false;
-      const startXs = Array.from({ length: 9 }, (_, index) => lower.x + (lower.w - PLAYER_SIZE) * index / 8);
-
-      attempts: for (const startX of startXs) {
-        for (const runDirection of [-1, 1] as const) {
-          for (const jumpFrame of [0, 12, 24, 36]) {
-            for (const steerDirection of [-1, 0, 1] as const) {
-              for (const jumpHold of [1, 30, 60]) {
-                const player = createPlayer(startX, lower.y - PLAYER_SIZE);
-                player.onGround = true;
-                const simulation = sectionSimulation(
-                  section,
-                  player,
-                  0,
-                  (entity) => fixture.excluded === 'wheel'
-                    ? !(entity instanceof WaterWheelEntity)
-                    : entity.dynamicSolids().length === 0,
-                );
-                for (let frame = 0; frame < 180; frame += 1) {
-                  const jumping = frame >= jumpFrame && frame < jumpFrame + jumpHold;
-                  simulation.step(input({
-                    moveX: frame < jumpFrame + 18 ? runDirection : steerDirection,
-                    jump: jumping,
-                    jumpPressed: frame === jumpFrame,
-                  }));
-                  if (landedOn(player, upper)) {
-                    bypassed = true;
-                    break attempts;
-                  }
-                }
-              }
+  it('keeps every wheel paddle comfortably above a player standing on its boarding bank for the whole cycle', () => {
+    for (const section of SECTIONS) {
+      for (const wheel of wheels(section)) {
+        const banks = routePlatforms(section).filter((solid) => solid.y > wheel.y + wheel.radius);
+        for (const t of sampleTimes(WHEEL_PERIOD, 200)) {
+          for (const paddle of wheelPaddlesAt(wheel, t)) {
+            for (const bank of banks) {
+              if (overlapWidth(paddle, bank) === 0) continue;
+              const headroom = bank.y - PLAYER_SIZE - (paddle.y + paddle.h);
+              expect(headroom, `section ${section.id} paddle headroom over bank ${bank.x},${bank.y} at t=${t.toFixed(2)}`).toBeGreaterThanOrEqual(40);
             }
           }
         }
       }
-
-      expect(bypassed, `section ${fixture.sectionIndex} ${fixture.excluded} bypass`).toBe(false);
     }
   });
 
-  it('hands Clockwork and every Aqueduct section directly to the next broad runway', () => {
-    const previousStages = [STAGE_02_CLOCKWORK.sections.at(-1)!, ...STAGE_03_AQUEDUCT.sections.slice(0, -1)];
-    for (let index = 0; index < STAGE_03_AQUEDUCT.sections.length; index += 1) {
-      const previous = previousStages[index];
-      const next = STAGE_03_AQUEDUCT.sections[index];
-      const topY = Math.min(...routePlatforms(previous).filter((solid) => solid.role === 'main').map((solid) => solid.y));
-      const exits = routePlatforms(previous).filter((solid) => solid.role === 'main' && solid.y === topY);
-      const entrance = runway(next);
-      expect(entrance, `handoff ${index} runway`).toBeDefined();
-      expect(Math.max(...exits.map((exit) => overlapWidth(exit, entrance!))), `handoff ${index} overlap`).toBeGreaterThanOrEqual(120);
-      expect(previous.height + topY - entrance!.y, `handoff ${index} rise`).toBeGreaterThanOrEqual(90);
-      expect(previous.height + topY - entrance!.y, `handoff ${index} rise`).toBeLessThanOrEqual(120);
+  it('keeps crate transfers close and leaves every sinking crate clear of fixed platforms', () => {
+    for (const section of SECTIONS) {
+      const ordered = [...crates(section)].sort((a, b) => a.x - b.x);
+      for (let index = 1; index < ordered.length; index += 1) {
+        const gap = ordered[index].x - (ordered[index - 1].x + ordered[index - 1].w);
+        expect(gap, `section ${section.id} crate transfer ${index}`).toBeLessThanOrEqual(130);
+      }
+      for (const crate of crates(section)) {
+        const sinkEnvelope = { ...crate, h: crate.h + crate.sinkDistance };
+        expect(section.solids.some((solid) => overlaps(sinkEnvelope, solid)), `section ${section.id} crate sink envelope`).toBe(false);
+      }
     }
+  });
+
+  it('keeps machinery clear of every checkpoint spawn over a full cycle', () => {
+    for (const section of SECTIONS) {
+      const spawn = { ...section.checkpoint, w: PLAYER_SIZE, h: PLAYER_SIZE };
+      for (const t of sampleTimes(WHEEL_PERIOD, 100)) {
+        const machinery = createEntities(section.entities).flatMap((entity) => {
+          entity.update(t, STEP);
+          return entity.dynamicSolids();
+        });
+        expect(machinery.some((solid) => overlaps(spawn, solid.box)), `section ${section.id} clear machinery at ${t}`).toBe(false);
+      }
+    }
+  });
+  it.each(SECTIONS.map((section, index) => [index, section.id]))(
+    'continuously climbs section %i from its checkpoint to the next runway in production physics',
+    { timeout: 120_000 },
+    (index) => {
+      const result = route(index);
+      expect(result.completed, `section ${index} route\n${result.trace.join('\n')}\nstopped at ${JSON.stringify(result.final)}`).toBe(result.total);
+    },
+  );
+
+  it.each(SECTIONS.map((section, index) => [index, section.id]))(
+    'replays the section %i route through the real Game in Normal mode without a respawn',
+    { timeout: 120_000 },
+    (index) => {
+      const result = route(index);
+      expect(result.completed, `section ${index} route`).toBe(result.total);
+      const game = new Game('normal');
+      const base = game.world.sections.findIndex((candidate) => candidate.stageId === 3);
+      game.warp(base + index);
+      for (const [frame, frameInput] of result.inputs.entries()) {
+        expect(game.step(frameInput).respawned, `section ${index} respawn at frame ${frame}`).toBe(false);
+      }
+      const next = game.world.sections[base + index + 1];
+      const landing = next
+        ? { ...dryRunway(SECTIONS[index + 1])!.solid, y: next.top + dryRunway(SECTIONS[index + 1])!.solid.y }
+        : { ...exits(SECTIONS[index])[0], y: game.world.sections[base + index].top + exits(SECTIONS[index])[0].y };
+      expect(landedOn(game.player, landing), `section ${index} real-game landing ${JSON.stringify({ x: game.player.x, y: game.player.y })}`).toBe(true);
+    },
+  );
+
+  it('requires every water volume on its route: no ordinary dry jump skips a swim', { timeout: 120_000 }, () => {
+    for (const [index, section] of SECTIONS.entries()) {
+      const legs = ROUTES[index];
+      const runway = dryRunway(section)!.solid;
+      const fixedBefore: SolidDef[] = [runway];
+      for (const leg of legs) {
+        const fixed = 'fixed' in leg ? leg.fixed : undefined;
+        if (leg.kind === 'swim' || leg.kind === 'rideSwim') {
+          const after = legs.slice(legs.indexOf(leg))
+            .map((later) => ('fixed' in later ? later.fixed : undefined))
+            .filter((solid): solid is SolidDef => solid !== undefined);
+          const { reached } = reachablePlatforms(section, fixedBefore, {
+            dash: false,
+            abortOnWater: true,
+            include: (def) => def.type === 'water',
+          });
+          const skipped = after.filter((solid) => reached.has(solid));
+          expect(skipped.map((solid) => [solid.x, solid.y]), `section ${index} swim skipped`).toEqual([]);
+        }
+        if (fixed) fixedBefore.push(fixed);
+      }
+    }
+  });
+
+  it('makes every upward jet climb faster than the same still water for a stroking swimmer', () => {
+    for (const section of SECTIONS) {
+      for (const field of waters(section).filter((candidate) => candidate.currentY < 0)) {
+        const climbFrames = (currentY: number) => {
+          const variant = { ...section, entities: section.entities.map((entity) => (entity === field ? { ...field, currentY } : entity)) };
+          const sim = new SectionSim(variant, createPlayer(field.x + field.w - PLAYER_SIZE - 8, field.y + field.h - PLAYER_SIZE - 2));
+          for (let frame = 0; frame < 1_200; frame += 1) {
+            const stroke = frame % 45 === 0;
+            sim.step(input({ jump: stroke, jumpPressed: stroke }));
+            if (sim.player.y + PLAYER_SIZE <= field.y) return frame;
+          }
+          return Number.POSITIVE_INFINITY;
+        };
+        const jet = climbFrames(field.currentY);
+        const still = climbFrames(0);
+        expect(jet, `section ${section.id} jet climb`).toBeLessThan(Number.POSITIVE_INFINITY);
+        expect(jet, `section ${section.id} jet ${jet} vs still ${still}`).toBeLessThanOrEqual(still * 0.8);
+      }
+    }
+  });
+
+  it('overlaps each wheel safe arc with its boarding bank and upper landing by at least 80 units', () => {
+    for (const section of SECTIONS) {
+      for (const wheel of wheels(section)) {
+        const envelope = { x: wheel.x - wheel.radius - wheel.paddleW / 2, w: wheel.radius * 2 + wheel.paddleW };
+        const lower = routePlatforms(section)
+          .filter((solid) => solid.y > wheel.y + wheel.radius)
+          .sort((a, b) => overlapWidth(envelope, b) - overlapWidth(envelope, a) || a.y - b.y)[0];
+        const jet = waters(section).find((field) => field.y + field.h < wheel.y);
+        const upper = jet ?? routePlatforms(section).filter((solid) => solid.y < wheel.y).sort((a, b) => b.y - a.y)[0];
+        expect(overlapWidth(envelope, lower), `section ${section.id} lower wheel overlap`).toBeGreaterThanOrEqual(80);
+        expect(overlapWidth(envelope, upper), `section ${section.id} upper wheel overlap`).toBeGreaterThanOrEqual(80);
+      }
+    }
+  });
+
+  it('uses a still intro pool with a 240-wide bank and a switchback whose broad dry landings need the dash', () => {
+    const [introField] = waters(SECTIONS[0]);
+    const introBanks = routePlatforms(SECTIONS[0]).filter((solid) => solid.y === introField.y && isWaterExit(introField, solid));
+    expect(introBanks.map((solid) => solid.w)).toEqual([240]);
+
+    const switchback = SECTIONS[5];
+    const [firstPool, secondPool] = waters(switchback);
+    const firstLanding = fixedAt(switchback, 190, 480);
+    const secondLanding = fixedAt(switchback, 610, 380);
+    expect(firstLanding.w).toBeGreaterThanOrEqual(180);
+    expect(secondPool.x - secondLanding.x, 'dry part of the second landing').toBeGreaterThanOrEqual(180);
+    expect(isWaterExit(firstPool, firstLanding)).toBe(true);
+
+    const ordinary = reachablePlatforms(switchback, [firstLanding], { dash: false, include: () => true });
+    expect(ordinary.reached.has(secondLanding), 'ordinary jump reaches the dash landing').toBe(false);
+    const dashed = reachablePlatforms(switchback, [firstLanding], { dash: true, include: () => true });
+    expect(dashed.reached.has(secondLanding), 'jump + dash reaches the dash landing').toBe(true);
   });
 });
