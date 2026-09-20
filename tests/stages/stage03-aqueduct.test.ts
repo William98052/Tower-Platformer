@@ -149,19 +149,14 @@ const ROUTES: Leg[][] = SECTIONS.map((section, index) => {
   const legs: Leg[] = (() => {
     switch (index) {
       case 0: return [
-        swim(section, 400, 460, [360, 340]),
-        jump(section, 680, 330),
-        jump(section, 380, 200),
+        swim(section, 400, 300, [380, 420, 360]),
+        jump(section, 640, 160),
+        jump(section, 360, 90),
         jump(section, 24, 70),
       ];
       case 1: return [
-        swim(section, 760, 660, [730, 700]),
-        jump(section, 620, 545),
-        jump(section, 380, 430),
-        jump(section, 140, 315),
-        jump(section, 24, 200),
-        jump(section, 100, 70),
-        swim(section, 640, 70, [600, 580]),
+        swim(section, 730, 270, [680, 700, 720, 740]),
+        swim(section, 24, 70, [80, 50, 110, 260]),
       ];
       case 2: return [
         { kind: 'jump', to: crateTarget(section, 0) },
@@ -172,7 +167,7 @@ const ROUTES: Leg[][] = SECTIONS.map((section, index) => {
         jump(section, 720, 70),
       ];
       case 3: {
-        const bank = fixedAt(section, 80, 345);
+        const bank = fixedAt(section, 24, 345);
         return [
           { kind: 'board' },
           { kind: 'ride', to: () => bank, fixed: bank },
@@ -187,19 +182,18 @@ const ROUTES: Leg[][] = SECTIONS.map((section, index) => {
         jump(section, 570, 70),
       ];
       case 5: return [
-        swim(section, 190, 480, [160, 130]),
-        jump(section, 610, 380, true),
-        swim(section, 610, 200, [810, 840]),
-        jump(section, 680, 70),
+        swim(section, 40, 300, [240, 250, 260, 80]),
+        jump(section, 80, 90, true),
+        swim(section, 720, 70, [300, 320, 700, 740]),
       ];
       default: {
         const exit = fixedAt(section, 560, 70);
         return [
-          { kind: 'swim', to: crateTarget(section, 0), riseXs: [160, 175, 190] },
+          { kind: 'swim', to: crateTarget(section, 0), riseXs: [320, 340, 300] },
           { kind: 'jump', to: crateTarget(section, 1) },
-          jump(section, 360, 490),
+          jump(section, 40, 490),
           { kind: 'board' },
-          { kind: 'rideSwim', to: () => exit, fixed: exit, riseXs: [500, 530, 470] },
+          { kind: 'rideSwim', to: () => exit, fixed: exit, riseXs: [580, 620, 540] },
         ];
       }
     }
@@ -360,6 +354,21 @@ describe('STAGE_03_AQUEDUCT', () => {
     expect(waters(finale).map((field) => [field.currentX, field.currentY])).toEqual([[420, 0], [0, -420]]);
   });
 
+  it('does not hang a platform over a checkpoint spawn within ordinary jump height', () => {
+    const jumpClearance = 200;
+    for (const section of SECTIONS) {
+      const runway = dryRunway(section);
+      expect(runway, `section ${section.id} runway`).not.toBeNull();
+      const spawnX = section.checkpoint.x;
+      for (const solid of routePlatforms(section)) {
+        if (solid.y >= runway!.solid.y) continue;
+        const hangsOverSpawn = solid.x < spawnX + PLAYER_SIZE && solid.x + solid.w > spawnX;
+        if (!hangsOverSpawn) continue;
+        expect(runway!.solid.y - solid.y, `section ${section.id} overhang at ${solid.x},${solid.y}`).toBeGreaterThan(jumpClearance);
+      }
+    }
+  });
+
   it('starts every section on a broad, dry, water-clear checkpoint runway', () => {
     for (const section of SECTIONS) {
       const spawn = { ...section.checkpoint, w: PLAYER_SIZE, h: PLAYER_SIZE };
@@ -455,7 +464,7 @@ describe('STAGE_03_AQUEDUCT', () => {
     }
   });
 
-  it('hands Clockwork and every Aqueduct section to the next runway with one ordinary production-physics jump', () => {
+  it('hands Clockwork and every Aqueduct section to the next runway with one ordinary production-physics jump', { timeout: 30_000 }, () => {
     const chain = [STAGE_02_CLOCKWORK.sections.at(-1)!, ...SECTIONS];
     for (let index = 0; index < chain.length - 1; index += 1) {
       const lower = chain[index];
@@ -481,9 +490,9 @@ describe('STAGE_03_AQUEDUCT', () => {
     expect(exits(SECTIONS[6]).some((exit) => exit.w >= 280), 'final Aqueduct exit is broad').toBe(true);
   });
 
-  it('keeps every crate and wheel gate closed to ordinary jumps and jump + eight-way air dash', { timeout: 240_000 }, () => {
+  it('keeps every crate and wheel gate closed to jump, eight-way air dash, and wall-jump chains', { timeout: 240_000 }, () => {
     for (const section of SECTIONS) {
-      const gates: { label: string; exclude: EntityDef['type']; startBelow: number; targetAbove: number; goalWater: WaterDef[]; dash: boolean }[] = [];
+      const gates: { label: string; exclude: EntityDef['type']; startBelow: number; targetAbove: number; goalWater: WaterDef[] }[] = [];
       const crateDefs = crates(section);
       if (crateDefs.length > 0) {
         gates.push({
@@ -492,10 +501,6 @@ describe('STAGE_03_AQUEDUCT', () => {
           startBelow: Math.max(...crateDefs.map((crate) => crate.y + crate.h)),
           targetAbove: Math.min(...crateDefs.map((crate) => crate.y)),
           goalWater: [],
-          // The finale's crates sit above its current pool, so their bank is only ordinary-gated: a
-          // dash-proof crate climb (300+) and the dash-proof wheel lift (300+) cannot share one
-          // 700-unit section. The finale wheel below is the reviewed gate and is dash-proof.
-          dash: section.id !== 6,
         });
       }
       for (const wheel of wheels(section)) {
@@ -505,14 +510,14 @@ describe('STAGE_03_AQUEDUCT', () => {
           startBelow: wheel.y,
           targetAbove: wheel.y,
           goalWater: waters(section).filter((field) => field.y + field.h < wheel.y),
-          dash: true,
         });
       }
       for (const gate of gates) {
         const starts = routePlatforms(section).filter((solid) => solid.y >= gate.startBelow);
         const targets = routePlatforms(section).filter((solid) => solid.y < gate.targetAbove);
         const { reached, goalWaterTouched } = reachablePlatforms(section, starts, {
-          dash: gate.dash,
+          dash: true,
+          wallJump: true,
           include: (def) => def.type !== gate.exclude,
           goalWater: gate.goalWater,
         });
@@ -595,7 +600,7 @@ describe('STAGE_03_AQUEDUCT', () => {
     },
   );
 
-  it('requires every water volume on its route: no ordinary dry jump skips a swim', { timeout: 120_000 }, () => {
+  it('requires every water volume on its route: no dry jump, dash, or wall-jump skips a swim', { timeout: 180_000 }, () => {
     for (const [index, section] of SECTIONS.entries()) {
       const legs = ROUTES[index];
       const runway = dryRunway(section)!.solid;
@@ -607,7 +612,8 @@ describe('STAGE_03_AQUEDUCT', () => {
             .map((later) => ('fixed' in later ? later.fixed : undefined))
             .filter((solid): solid is SolidDef => solid !== undefined);
           const { reached } = reachablePlatforms(section, fixedBefore, {
-            dash: false,
+            dash: true,
+            wallJump: true,
             abortOnWater: true,
             include: (def) => def.type === 'water',
           });
@@ -655,18 +661,19 @@ describe('STAGE_03_AQUEDUCT', () => {
     }
   });
 
-  it('uses a still intro pool with a 240-wide bank and a switchback whose broad dry landings need the dash', () => {
+  it('uses a still intro pool with a 240-wide bank and a switchback whose broad dry landings need the dash', { timeout: 30_000 }, () => {
     const [introField] = waters(SECTIONS[0]);
     const introBanks = routePlatforms(SECTIONS[0]).filter((solid) => solid.y === introField.y && isWaterExit(introField, solid));
     expect(introBanks.map((solid) => solid.w)).toEqual([240]);
 
     const switchback = SECTIONS[5];
     const [firstPool, secondPool] = waters(switchback);
-    const firstLanding = fixedAt(switchback, 190, 480);
-    const secondLanding = fixedAt(switchback, 610, 380);
+    const firstLanding = fixedAt(switchback, 40, 300);
+    const secondLanding = fixedAt(switchback, 80, 90);
     expect(firstLanding.w).toBeGreaterThanOrEqual(180);
-    expect(secondPool.x - secondLanding.x, 'dry part of the second landing').toBeGreaterThanOrEqual(180);
+    expect(secondLanding.w).toBeGreaterThanOrEqual(180);
     expect(isWaterExit(firstPool, firstLanding)).toBe(true);
+    expect(isWaterExit(secondPool, fixedAt(switchback, 720, 70))).toBe(true);
 
     const ordinary = reachablePlatforms(switchback, [firstLanding], { dash: false, include: () => true });
     expect(ordinary.reached.has(secondLanding), 'ordinary jump reaches the dash landing').toBe(false);

@@ -1,5 +1,5 @@
 import { platform, section } from './builders';
-import type { EntityDef, StageDef } from './types';
+import type { EntityDef, SolidDef, StageDef } from './types';
 
 function water(x: number, y: number, w: number, h: number, currentX = 0, currentY = 0): EntityDef {
   return { type: 'water', x, y, w, h, currentX, currentY };
@@ -7,6 +7,10 @@ function water(x: number, y: number, w: number, h: number, currentX = 0, current
 
 function crate(x: number, y: number, w: number, sinkDistance: number): EntityDef {
   return { type: 'sinkingCrate', x, y, w, h: 20, sinkDistance };
+}
+
+function gate(x: number, y: number, w: number, h: number): SolidDef {
+  return { x, y, w, h, surface: 'normal', role: 'boundary' };
 }
 
 export const STAGE_03_AQUEDUCT: StageDef = {
@@ -20,40 +24,37 @@ export const STAGE_03_AQUEDUCT: StageDef = {
     accent: '#a46f45',
   },
   sections: [
-    // 1. Walk off the runway into a still pool that rests on the same floor, swim up, and step onto
-    //    the 240-wide bank; a three-step zigzag reaches the exit.
-    section(0, 520, [
+    // 1. Clockwork-facing floor, 360-deep still cistern, 240 bank, spawn not under the bank.
+    section(0, 650, [
       platform(24, 660, 656),
-      platform(400, 460, 240),
-      platform(680, 330, 240),
-      platform(380, 200, 260),
+      platform(400, 300, 240),
+      platform(640, 160, 240),
+      platform(360, 90, 200),
       platform(24, 70, 300),
     ], [
-      water(24, 460, 376, 200),
+      water(24, 300, 376, 360),
     ]),
 
-    // 2. A shallow sealed canal carries the player right, a staircase climbs back left, and a second
-    //    sealed canal at the top pushes against the final crossing.
+    // 2. +260 canal climbs 390 to a 160 bank (dash cannot finish the crossing). A slide wall holds
+    //    the swimmer on the exit face. The -260 canal is a wide leftward swim; gap > 420 from the
+    //    bank so jump+dash cannot skip it. Banks stay off the side walls (no wall-jump column).
     section(1, 220, [
       platform(120, 660, 300),
-      platform(420, 684, 340),
-      platform(760, 660, 176),
-      platform(620, 545, 220),
-      platform(380, 430, 220),
-      platform(140, 315, 220),
-      platform(24, 200, 100),
-      platform(100, 70, 200),
-      platform(300, 110, 340),
-      platform(640, 70, 280),
+      platform(420, 660, 310),
+      platform(730, 270, 160),
+      platform(304, 270, 116),
+      platform(24, 70, 280),
+      gate(714, 286, 16, 374),
+      gate(304, 86, 16, 184),
     ], [
-      water(420, 660, 340, 24, 260),
-      water(300, 70, 340, 40, -260),
+      water(420, 270, 310, 390, 260),
+      water(304, 70, 426, 200, -260),
     ]),
 
-    // 3. Three rising crates step left over a flush recovery floor; a fixed zigzag leaves from the top.
-    section(2, 600, [
-      platform(460, 660, 300),
-      platform(24, 660, 436, 'normal', 'recovery'),
+    // 3. Three rising crates over a flush recovery floor. Runway sits under Section 2's left exit.
+    section(2, 220, [
+      platform(120, 660, 300),
+      platform(420, 660, 396, 'normal', 'recovery'),
       platform(200, 260, 240),
       platform(480, 165, 220),
       platform(720, 70, 216),
@@ -63,18 +64,17 @@ export const STAGE_03_AQUEDUCT: StageDef = {
       crate(60, 360, 100, 50),
     ]),
 
-    // 4. The wheel lifts riders from the floor to a high bank no jump or dash can reach.
+    // 4. Wheel bank meets the left wall — no wall-jump column.
     section(3, 700, [
       platform(24, 660, 816),
-      platform(80, 345, 310),
+      platform(24, 345, 366),
       platform(440, 210, 240),
       platform(700, 70, 236),
     ], [
       { type: 'waterWheel', x: 500, y: 450, radius: 120, phase: 0, paddleW: 140, paddleH: 20 },
     ]),
 
-    // 5. An up-current column rises from the floor to a surface ledge; two crates cross above the
-    //    column to the exit, and any miss drops back into the water.
+    // 5. Up-current column and two crates.
     section(4, 680, [
       platform(24, 660, 816),
       platform(24, 370, 220),
@@ -85,30 +85,34 @@ export const STAGE_03_AQUEDUCT: StageDef = {
       crate(430, 170, 100, 45),
     ]),
 
-    // 6. Swim up the first pool, dash across to a broad dry landing, then swim the second pool.
-    section(5, 450, [
-      platform(24, 660, 666),
-      platform(190, 480, 180),
-      platform(610, 380, 326),
-      platform(610, 200, 180),
-      platform(680, 70, 256),
+    // 6. Right-side runway under Section 5. Swim left out of a 360-deep cistern, dash up,
+    //    then swim the second channel to the right-hand exit.
+    section(5, 680, [
+      platform(24, 660, 476),
+      platform(500, 660, 280),
+      platform(40, 300, 188),
+      platform(80, 90, 200),
+      platform(640, 270, 80),
+      platform(720, 70, 216),
+      gate(212, 316, 16, 344),
     ], [
-      water(24, 480, 166, 180, 160),
-      water(790, 200, 146, 180, -160),
+      water(228, 300, 272, 360, -160),
+      water(280, 70, 440, 200, 160),
     ]),
 
-    // 7. Wade against a strong current to a floating crate, climb two crates to the wheel bank, and ride
-    //    the wheel up into the final water jet beside the exit.
-    section(6, 640, [
-      platform(24, 660, 776),
-      platform(360, 490, 200),
+    // 7. Right-side runway under Section 6. Bank sits over the +420 current, 432 away from the
+    //    dry floor, so jump+dash cannot skip the crates. Boundary floor seals idle sinks.
+    section(6, 780, [
+      platform(621, 660, 280),
+      platform(40, 490, 160),
       platform(560, 70, 300),
+      gate(40, 660, 581, 16),
     ], [
-      water(24, 600, 476, 60, 420),
-      crate(40, 586, 110, 30),
-      crate(200, 540, 110, 30),
-      { type: 'waterWheel', x: 400, y: 280, radius: 120, phase: 0, paddleW: 140, paddleH: 20 },
-      water(200, 70, 360, 80, 0, -420),
+      water(40, 490, 581, 170, 420),
+      crate(320, 476, 110, 30),
+      crate(210, 476, 110, 30),
+      { type: 'waterWheel', x: 160, y: 280, radius: 120, phase: 0, paddleW: 140, paddleH: 20 },
+      water(80, 70, 480, 80, 0, -420),
     ]),
   ],
 };

@@ -200,9 +200,10 @@ export interface JumpShape {
   steer: -1 | 0 | 1;
   steerDelay: number;
   dash?: { x: -1 | 0 | 1; y: -1 | 0 | 1; delay: number };
+  wallJump?: { dir: -1 | 1; delay: number };
 }
 
-/** Walk to `approachX`, optionally wait, run, jump, steer, and optionally air-dash once. */
+/** Walk to `approachX`, optionally wait, run, jump, steer, and optionally air-dash / wall-jump. */
 export function jumpPolicy(shape: JumpShape): Policy {
   let phase: 'approach' | 'wait' | 'jump' = 'approach';
   let phaseStart = 0;
@@ -225,16 +226,27 @@ export function jumpPolicy(shape: JumpShape): Policy {
     let moveX: -1 | 0 | 1 = k < jumpAt || airborne < shape.steerDelay ? shape.runDirection : shape.steer;
     let moveY: -1 | 0 | 1 = 0;
     let dashPressed = false;
+    let jumpPressed = airborne === 0;
+    if (shape.wallJump && airborne >= 0 && airborne <= shape.wallJump.delay) {
+      moveX = shape.wallJump.dir;
+    }
     if (shape.dash && airborne === shape.dash.delay) {
       moveX = shape.dash.x;
       moveY = shape.dash.y;
       dashPressed = true;
     }
+    if (shape.wallJump && airborne === shape.wallJump.delay) {
+      moveX = shape.wallJump.dir;
+      jumpPressed = true;
+    }
+    if (shape.wallJump && airborne > shape.wallJump.delay) {
+      moveX = shape.steer;
+    }
     return input({
       moveX,
       moveY,
-      jump: airborne >= 0 && airborne < shape.hold,
-      jumpPressed: airborne === 0,
+      jump: airborne >= 0 && airborne < Math.max(shape.hold, (shape.wallJump?.delay ?? 0) + 12),
+      jumpPressed,
       dashPressed,
     });
   };
@@ -323,9 +335,9 @@ export function swimPolicy(target: (sim: SectionSim) => AABB, shape: SwimShape):
   };
 }
 
-export function* swimCandidates(target: (sim: SectionSim) => AABB, riseXs: number[], maxFrames = 900): Generator<Candidate> {
+export function* swimCandidates(target: (sim: SectionSim) => AABB, riseXs: number[], maxFrames = 2_400): Generator<Candidate> {
   for (const riseX of riseXs) {
-    for (const cadence of [27, 34, 44]) {
+    for (const cadence of [20, 27, 34, 44]) {
       const shape = { riseX, cadence };
       yield { label: `swim ${JSON.stringify(shape)}`, maxFrames, make: () => swimPolicy(target, shape) };
     }
@@ -340,6 +352,8 @@ export function standingSamples(solid: AABB, count = 7): number[] {
 export interface ReachOptions {
   /** Also try jump + one eight-way air dash at several timings. */
   dash: boolean;
+  /** Also try jump + dash + wall-jump from a wall beside the start platform. */
+  wallJump?: boolean;
   /** Entities kept in the simulation (the mechanic under test is removed). */
   include: (def: EntityDef) => boolean;
   /** Treat any contact with water as not bypassing (the swim was used). */
@@ -349,24 +363,62 @@ export interface ReachOptions {
 }
 
 const DASH_DIRECTIONS = [[1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0], [0, 1], [1, 1], [-1, 1]] as const;
+const WALL_DASH_DIRECTIONS = [[0, -1], [1, -1], [-1, -1], [1, 0], [-1, 0]] as const;
+const LEFT_WALL = 24;
+const RIGHT_WALL = 936;
 
-function* transitionShapes(from: SolidDef, to: AABB, dash: boolean): Generator<{ startX: number; shape: JumpShape }> {
+function wallDirsBeside(from: SolidDef): (-1 | 1)[] {
+  const dirs: (-1 | 1)[] = [];
+  if (from.x <= LEFT_WALL + 4) dirs.push(-1);
+  if (from.x + from.w >= RIGHT_WALL - 4) dirs.push(1);
+  return dirs;
+}
+
+function* transitionShapes(
+  from: SolidDef,
+  to: AABB,
+  dash: boolean,
+  wallJump: boolean,
+): Generator<{ startX: number; shape: JumpShape }> {
   const toward: -1 | 1 = to.x + to.w / 2 >= from.x + from.w / 2 ? 1 : -1;
-  const startXs = standingSamples(from, dash ? 5 : 7);
+  const startXs = standingSamples(from, dash || wallJump ? 5 : 7);
   const dashes: JumpShape['dash'][] = [undefined];
   if (dash) {
     for (const delay of [4, 12, 20, 28, 36, 44]) {
       for (const [x, y] of DASH_DIRECTIONS) dashes.push({ x, y, delay });
     }
   }
+  const wallJumps: JumpShape['wallJump'][] = [undefined];
+  if (wallJump) {
+    for (const dir of wallDirsBeside(from)) {
+      for (const delay of [24, 36, 44, 56]) wallJumps.push({ dir, delay });
+    }
+  }
   for (const d of dashes) {
-    for (const startX of startXs) {
-      for (const runDirection of [toward, -toward as -1 | 1]) {
-        for (const runFrames of d ? [0, 16] : [0, 16]) {
-          for (const hold of d ? [60] : [60, 14]) {
-            for (const steer of [toward, 0, -toward as -1 | 1] as const) {
-              for (const steerDelay of d ? [0] : [0, 12]) {
-                yield { startX, shape: { approachX: startX, wait: 0, runDirection, runFrames, hold, steer, steerDelay, dash: d } };
+    for (const wall of wallJumps) {
+      if (wall && d && !WALL_DASH_DIRECTIONS.some(([x, y]) => x === d.x && y === d.y)) continue;
+      if (wall && d && d.delay >= wall.delay) continue;
+      for (const startX of startXs) {
+        for (const runDirection of [toward, -toward as -1 | 1]) {
+          for (const runFrames of d || wall ? [0, 16] : [0, 16]) {
+            for (const hold of d || wall ? [60] : [60, 14]) {
+              for (const steer of [toward, 0, -toward as -1 | 1] as const) {
+                for (const steerDelay of d || wall ? [0] : [0, 12]) {
+                  yield {
+                    startX,
+                    shape: {
+                      approachX: startX,
+                      wait: 0,
+                      runDirection,
+                      runFrames,
+                      hold,
+                      steer,
+                      steerDelay,
+                      dash: d,
+                      wallJump: wall,
+                    },
+                  };
+                }
               }
             }
           }
@@ -376,10 +428,12 @@ function* transitionShapes(from: SolidDef, to: AABB, dash: boolean): Generator<{
   }
 }
 
-function withinReach(from: SolidDef, to: AABB, dash: boolean): boolean {
+function withinReach(from: SolidDef, to: AABB, dash: boolean, wallJump: boolean): boolean {
   const rise = from.y - to.y;
   const gap = Math.max(0, to.x - (from.x + from.w), from.x - (to.x + to.w));
-  return rise <= (dash ? 320 : 175) && gap <= (dash ? 420 : 260) && rise >= -700;
+  const maxRise = wallJump ? 460 : dash ? 320 : 175;
+  const maxGap = wallJump ? 520 : dash ? 420 : 260;
+  return rise <= maxRise && gap <= maxGap && rise >= -700;
 }
 
 /**
@@ -400,9 +454,9 @@ export function reachablePlatforms(
   while (queue.length > 0) {
     const from = queue.shift()!;
     for (const to of nodes) {
-      if (reached.has(to) || !withinReach(from, to, options.dash)) continue;
+      if (reached.has(to) || !withinReach(from, to, options.dash, options.wallJump === true)) continue;
       let found = false;
-      for (const { startX, shape } of transitionShapes(from, to, options.dash)) {
+      for (const { startX, shape } of transitionShapes(from, to, options.dash, options.wallJump === true)) {
         const sim = new SectionSim(section, standingOn(from, startX), 0, options.include);
         const policy = jumpPolicy(shape);
         for (let frame = 0; frame < 170; frame += 1) {
