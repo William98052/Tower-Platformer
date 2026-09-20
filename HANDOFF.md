@@ -1,162 +1,253 @@
-# Handoff: Tower Platformer
+# Handoff: Clockwork Hall + Sunken Aqueduct
 
-A note for the next agent picking up this project. Read this first, then the design spec.
+Read this file first, then continue the active Milestone 4 plan. The user asked for continuous autonomous progress and prefers short, plain-language updates.
 
-## What this is
+## Repository and workflow
 
-A 2D, minimalist, "Tower of Hell"-style vertical platformer that runs in the browser. The player climbs one long, continuous tower of 10 themed stages that get harder the higher you go.
+- Repo: `/Users/william/p/Tower_Platformer`
+- Branch: `main`
+- Remote: `git@github.com:William98052/Tower-Platformer.git`
+- Work directly in this checkout. Repository instructions authorize commits and pushes directly to `main`; do not open a PR or create a worktree.
+- Use TDD for behavior and physics. Rendering-only changes require browser evidence.
+- Commit messages need a co-author trailer for the agent that made them. Tasks 1–10 `bdc583f` used `Co-Authored-By: OpenAI Codex <noreply@openai.com>`; `c133030` (Claude) used `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- Subagent usage limits have interrupted work several times. If an agent dies mid-task, check `git status` to see what actually landed before re-dispatching.
+- Preview should remain available at `http://127.0.0.1:5173/` for the user.
+- Node 25 prints a Vitest engine warning, but the suite works.
 
-It has two difficulty modes:
-- **Normal:** checkpoints.
-- **Hard:** no checkpoints, and a fall can drop you all the way to the ground.
+Authoritative files:
 
-- **Repo:** `git@github.com:William98052/Tower-Platformer.git`, branch `main`.
-- **Design spec (source of truth):** `docs/superpowers/specs/2026-09-14-tower-platformer-design.md`
-- **Milestone 1 plan (done):** `docs/superpowers/plans/2026-09-14-m1-movement-feel.md`. Its end has "Implementation notes: agreed deviations" and a "Deferred" list.
-- **Milestone 2 plan (implemented):** `docs/superpowers/plans/2026-09-15-m2-moss-ruins.md`.
-- **Milestone 3 spec (implemented):** `docs/superpowers/specs/2026-09-15-m3-menus-saving-settings-sound-design.md`.
-- **Milestone 3 plan (implemented):** `docs/superpowers/plans/2026-09-15-m3-menus-saving-settings-sound.md`.
+- Plan: `docs/superpowers/plans/2026-09-16-m4-clockwork-aqueduct.md`
+- Design: `docs/superpowers/specs/2026-09-16-m4-clockwork-aqueduct-design.md`
+- SDD ledger: `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/progress.md`
+- SDD workspace: `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/`
 
-## Current status
+The active workflow is `superpowers:subagent-driven-development`. For each task: make an explicit task brief, use a fresh implementer, create a review package, use an independent reviewer, send findings back to the original implementer for up to five fix rounds, then push only after Critical/Important findings are closed. Do not fix reviewer findings in the controller. The skill scripts are not executable directly, so invoke them with `bash` and pass explicit output paths.
 
-**Milestone 3 (menus, saving, settings, and sound) is implemented on `main`.** Automated QA and the browser walkthrough are complete. The remaining subjective checks are the user's full-climb feel pass and listening to the synthesized sounds at their preferred volume.
+## Exact current state (updated 2026-09-18)
 
-The game now boots into the real **Moss Ruins** stage with:
-- all 7 fixed, hand-built sections
-- normal, one-way, vine, bouncy, and slope surfaces
-- animated bouncy mushrooms and section-limited entity activation
-- Normal checkpoints and fall respawns
-- Hard mode knockback, stun, and invulnerability rules
-- timer, falls, tower progress, stage label, stage banner, and move prompts
-- debug noclip, mode toggle, slow motion, and section warp
-- a title screen, mode selection, pause menu, confirmations, and keyboard focus trapping
-- versioned local saves for separate Normal and Hard runs, records, settings, and completed prompts
-- checkpoint-safe Normal Continue and five-second Hard autosaves with position and velocity
-- persistent master/SFX volume, two keyboard bindings per action, conflict swapping, screen shake, reduced effects, and confirmed Reset Defaults
-- synthesized movement/UI/checkpoint sounds plus Moss Ruins ambience that ducks while paused
-- the complete Milestone 1 movement set:
-  - run and a variable-height jump
-  - wall slide and wall jump
-  - an 8-direction dash
-  - camera follow with fall lead and shake
-  - particles, squash and afterimages
-  - debug overlay
+Tasks 1–9 are complete, independently reviewed, and pushed to `origin/main`.
 
-It's tested: **254 Vitest tests pass across 28 files**, the typecheck is clean, and `npm run build` works. The browser walkthrough covered title/mode navigation, Normal Continue across reload, Hard timed autosave across reload, pause/restart/quit, settings persistence, live rebinding, Reset Defaults confirmation, and keyboard focus wrapping. Browser diagnostics showed no console errors.
+Task 10, the seven-section Sunken Aqueduct layout, is **still open**: it is committed locally but has not been accepted or pushed. Git state: `main...origin/main [ahead 2]`, plus this uncommitted `HANDOFF.md` edit.
 
-Recent changes driven by the user:
-- **Wall-jump shafts and section handoffs were made forgiving.** Each wall-jump room now starts on a broad flat checkpoint runway outside the shaft, has a 100-unit walk-under entrance, and uses a short 250-unit alternating climb. The finale has broad overlapping landings, and every jump into the next checkpoint is 90–120 units with no cramped filler hop.
-- **The vine shafts now use clean edge-to-edge exits.** Exit ledges start at the outside wall edge, and redundant pre-shaft ledges were removed.
-- **Moss Ruins was visually and structurally revised.** The seven sections now have one classified main route with aligned section handoffs; the only recovery ledge is dimmed and reconnects to the route. The awkward triangular slope solids were removed in favor of stepped stone platforms. The background now uses larger arches, columns, roots, light shafts, and mist for clearer depth.
-- **Wall jumps were too hard.** The wall-jump pillar in the test room was widened and joined to the exit platform (`50b86a7`).
-- **Stamina was built and then removed at the user's request**, because it made wall hops impossible. It lost the dash refill you get from sliding on a new wall.
-  - The work is kept on the **local-only** branch `stamina-shelved` (commits `ef8869f` and `79b8d81`, not pushed).
-  - The spec marks stamina as "deferred". If it comes back, keep the refill from sliding on a new wall.
-- **Move prompts are implemented in-run and persisted.** Completed prompts stay dismissed across runs and reloads.
+- `bdc583f` `feat: build Sunken Aqueduct routes`: the original implementation.
+- `c133030` `fix: make Sunken Aqueduct routes traversable`: fix round 1. Full suite 39 files / 423 tests passed; typecheck, build, and `git diff --check` were clean.
+- Brief: `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/task-10-brief.md`
+- Report (includes "Fix round 1"): `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/task-10-report.md`
+- Reviewer probe scripts, which run real `Game.step`/`stepPlayer` bypass searches: `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/task-10-probes/`. Run them with `npx vitest run --config .superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/task-10-probes/vitest.probe.config.mjs <name>`. They append results to `*.out` files in that folder.
 
-## Next up
+### Task 10 review history
 
-1. Have the user play the full Moss Ruins climb in Normal, listen to the new audio mix, and tune any movement, level, or volume details that feel wrong.
-2. Start **Milestone 4: stages 2–10**, continuing with fixed, hand-built layouts. Build and review the next stages in small batches rather than all nine at once.
+**Review 1** of `bdc583f` gave CHANGES REQUIRED. All of these are now fixed in `c133030` and were confirmed fixed by the re-review:
 
-Milestone 3 should persist Normal/Hard runs, records, settings, and completed move prompts. The current prompt completion set only lives for the browser session.
+- C1: the Section 2→3 handoff was sealed, so the game could not be finished.
+- I1: water volumes had no floor, so an idle player sank into lower sections and even into Clockwork.
+- I2: the Section 5→6 handoff needed a precise dash.
+- I2b: checkpoint runways were mostly under water.
+- Minor: filler ledges, stacked Section 4 ledges, 17 units of wheel headroom, and fragment-only tests.
 
-Later milestones:
-- **M3:** menus, saving, settings, sound — implemented
-- **M4:** stages 2–10
-- **M5:** balancing, performance and the win screen
+**Section 3 ruling (final): accepted.** The signature stays exactly `['sinkingCrate']`, and the section uses a collision recovery floor instead of a `WaterEntity`. Task 11 may draw a non-colliding decorative water surface there to honour the "pool" wording.
 
-A level randomizer is explicitly **later**. The user wants fixed, hand-built layouts first.
+**Re-review of `c133030`:** CHANGES REQUIRED. No Critical findings remain; every handoff works, idle swimmers stay in their section, dry runways are 280 units or wider, and nothing is filler. Three **Important** findings are open.
 
-## How to run
+The controller ruling for the Aqueduct: each section's defining mechanic must not be skippable by jump + air dash, or by jump + dash + wall-jump. Ordinary-jump-only gating is not enough.
+
+1. **The Section 4 wheel can be skipped with a wall-jump.** The bank `platform(80, 345, 310)` in `src/stages/stage03-aqueduct.ts` (~line 69) leaves a 56-unit column at the left wall. From the floor at the wall: jump, up-dash at frame 12, wall-jump at frame 44, steer right. The player lands on the bank at y345 in both Normal and Hard. The comment at ~line 66 ("no jump or dash can reach") is wrong. The gate test (`tests/stages/stage03-aqueduct.test.ts` ~:484) never tries wall-jumps. Probes: `wall.probe.ts`, `gamewall.probe.ts`.
+2. **Water sections can be skipped completely dry with jump + dash.**
+   - Section 1: dry floor → bank at y460 (~lines 26-32).
+   - Section 2: both canals: runway → (760,660), and (100,70) → (640,70) (~lines 49-50).
+   - Section 6: both pools: → (190,480), and (610,380) → (610,200).
+
+   The swim-requirement test (~:598) only tries ordinary jumps. Section 6's plan text is "swim channels alternating with dash landings": dash landings must be reachable from the water exits, but a dash must not replace the swim. Probes: `dashskip.probe.ts`, `dashskip2.probe.ts`.
+3. **The Section 7 current and both crates can be skipped** with jump + up-dash from x=500 onto the bank `platform(360, 490, 200)` (~line 104), which overhangs the dry floor at x500–560. The reviewer's suggested fix is to gate it sideways by moving the bank over the water. Also remove the exemption comment in the test (~:495-498). Probes: `crate*.probe.ts`, `bypass.probe.ts`.
+
+- **Minor:** the Section 1 bank at y460 (x400–640) hangs 156 units above the checkpoint spawn, so a jump at spawn bonks it. Nothing should hang over a checkpoint within jump height.
+- **Ruled fine:** the crate sink delay measured 0.358 s, which matches the spec's 0.35 s plus one frame.
+
+**Fix round 2 was dispatched but never started.** The implementer hit a weekly usage limit before changing any file, so the working tree has no gameplay changes.
+
+Keep everything already passing: handoff searches, idle-sink safety, dry runways ≥280 with spawn ≥80 units from water, 52 units of wheel headroom across the full cycle, no filler, chained checkpoint→next-runway routes replayed through `Game.step`, and the exact section names, signatures, currents (±260, −420, +420), crate counts, and wheel counts. Change stage data and tests only, never physics constants or entity behaviour.
+
+`HANDOFF.md` is modified by this user-requested handoff update. Preserve it; it will be finalized and committed during Task 12 unless the user asks to commit it earlier.
+
+## Immediate next action
+
+1. Run `git status --short --branch`. Expect `ahead 2` (`bdc583f`, `c133030`) plus the `HANDOFF.md` edit.
+2. Dispatch a fresh implementer for **Task 10 fix round 2** with the three Important findings and the Minor finding above. Include the controller ruling and the "keep everything already passing" list. Require TDD: extend the gate and swim-requirement searches to jump + 8-direction dash at several timings, plus wall-jump chains from any wall next to a platform below each gate, and confirm they fail before changing the data. Commit title: `fix: gate Sunken Aqueduct mechanics against dash skips`. Append "Fix round 2" to the report.
+3. Re-review only those findings with an independent reviewer, rerunning the probes in `task-10-probes/`. Allow at most five fix rounds in total; this would be round 2.
+4. When no Critical or Important findings remain:
+   - append the Task 10 review and fix results to the SDD ledger;
+   - push `bdc583f..HEAD` to `origin/main`;
+   - keep the handoff edit out of gameplay commits.
+5. Continue Task 11 and Task 12 without pausing unless blocked.
+
+Earlier Task 10 review package, for reference only; generate a new one for later ranges:
+
+
+```bash
+bash /Users/william/.codex/plugins/cache/openai-curated-remote/superpowers/6.3.0/skills/subagent-driven-development/scripts/review-package \
+  /Users/william/p/Tower_Platformer/docs/superpowers/plans/2026-09-16-m4-clockwork-aqueduct.md \
+  d8e503b bdc583f \
+  /Users/william/p/Tower_Platformer/.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/review-d8e503b..bdc583f.diff
+```
+
+## Completed Milestone 4 work
+
+### Task 1 — Continuous tower model
+
+- Commit `b11286d`
+- Introduced the continuous ordered tower/world representation.
+- 261 tests passed; reviewed and pushed.
+
+### Task 2 — Stage-relative V2 saves
+
+- Commits `73688e8`, `d82c603`
+- Migrated saves atomically so Continue remained usable.
+- 268 tests passed; reviewed and pushed.
+
+### Task 3 — Cross-stage game state/UI
+
+- Commit `93dfc1b`
+- Added global stage/section state, banners, checkpoint behavior, HUD, and debug support.
+- 282 tests passed; reviewed and pushed.
+
+### Task 4 — Reusable world interactions
+
+- Commits `5d19220`, `17e5da2`
+- Added dynamic solids, carry/push/hazard contracts, and field sampling.
+- Important ordering: moving-platform carry now precedes environment sampling.
+- 296 tests passed; reviewed and pushed.
+
+### Task 5 — Clockwork mechanics
+
+- Commits `1faa5b9`, `d1d74ce`
+- Added conveyors, gears, pistons, and timed doors with deterministic `t`/`t-dt` deltas and finite validation.
+- 320 tests passed; reviewed and pushed.
+
+### Task 6 — Clockwork Hall layouts
+
+- Commits `e11ae4c`, `43888e0`, `11f22b1`, `8396fec`
+- Seven continuous sections with real production-physics traversal tests.
+- Fixed all shortcut and impossible-transfer findings. The first Machine Climb gate is 25.5 units above the measured jump apex, and a broad reachability search reproduces/rejects the former bypass.
+- 333 tests passed; reviewed and pushed.
+
+### Task 7 — Clockwork presentation/audio
+
+- Commits `71ed8cf`, `b6da59c`
+- Added exact 600-unit Moss→Clockwork theme blending, Clockwork rendering, animated belts, machinery telegraphs, warning lamps, synthesized SFX, and gain-based ambience crossfade.
+- Fixed ghost-prone compositing and made door warning occur 0.2 seconds before motion.
+- 348 tests passed; all sections 7–13 were browser-checked in Normal/Hard, with a post-fix Section 7 spot check at 145 FPS and no console issue.
+- One accepted Minor: semi-transparent recovery/boundary solids can be slightly more opaque at the blend midpoint. Main-route solids/backgrounds are exact.
+- Reviewed and pushed.
+
+### Task 8 — Water movement/currents
+
+- Commits `f626e26`, `6f1893e`
+- Added water fields, exact submerged gravity/drag/fall cap, fresh-press strokes, overlap/current aggregation, and safe dry/wet exits.
+- Fixed ordering so platform carry occurs before water sampling and water drag applies before control acceleration.
+- 370 tests passed; reviewed and pushed.
+
+### Task 9 — Crates/water wheels
+
+- Commits `3e9b718`, `d8e503b`
+- Added deterministic sinking crates and four-paddle rideable water wheels.
+- Coverage includes all four paddle deltas/carry directions, integrated `Game.step` rider behavior, blockers, resets, and finite normalized wheel phase validation.
+- 393 tests passed; reviewed and pushed.
+
+## Remaining Task 11
+
+Task 11 is Aqueduct rendering, ambience, effects, and audio. Generate its brief with:
+
+```bash
+bash /Users/william/.codex/plugins/cache/openai-curated-remote/superpowers/6.3.0/skills/subagent-driven-development/scripts/task-brief \
+  /Users/william/p/Tower_Platformer/docs/superpowers/plans/2026-09-16-m4-clockwork-aqueduct.md \
+  11 \
+  /Users/william/p/Tower_Platformer/.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct/task-11-brief.md
+```
+
+Required Task 11 results:
+
+- exact Clockwork→Aqueduct blend weights at bottom/midpoint/top of the 600-unit zone;
+- equal Clockwork/Aqueduct ambience gain at midpoint and full replacement above it;
+- teal arches, oxidized trim, light shafts, plants, bubbles, waterfalls, and mist;
+- animated water surface/tint/reflection, directional bubbles, and clipped contents;
+- Reduced Effects changes visuals only, never water collision bounds;
+- crate waterline/sink trail and complete wheel/paddle rendering;
+- synthesized `splash`, `swimStroke`, `crate`, and `wheel` sounds plus Aqueduct ambience;
+- stage-sensitive particle palettes;
+- splash events only on water-state edges;
+- mute/live gain/pause ducking/backend-failure tests;
+- browser inspection and independent review before push.
+
+Expected commit title: `feat: present and score Sunken Aqueduct`.
+
+## Remaining Task 12 and final closeout
+
+Task 12 is the complete three-stage integration/browser QA/documentation pass. It must verify:
+
+- fresh Normal run;
+- Stage 2 and Stage 3 checkpoint Continue;
+- Hard autosaves in all stages;
+- reload around moving machinery;
+- pause timer gating and quit/continue visibility;
+- V1 migration, corrupt V2 fallback, and unavailable-storage notice;
+- every Clockwork section (global 7–13) in both modes;
+- every Aqueduct section (global 14–20) in both modes;
+- no useless collision platforms, soft locks, unreadable telegraphs, or impossible jumps;
+- strokes require presses, currents are visible, crates recover, wheels carry, and water exits are clean;
+- all three themes, both blends, Reduced Effects, mute/live volume, and no browser console errors;
+- at least 60 FPS in Clockwork 7 and Aqueduct 7.
+
+Use TDD for any logic defect. For rendering/audio-only defects, record the reproduction and repeat the browser check. Subjective audio timbre/listening is the one declared user check the agent cannot complete reliably.
+
+After Task 12 implementation:
+
+1. Run fresh full verification and record exact totals only after all commands exit 0.
+2. Update this handoff and mark plan checkboxes only where evidence exists.
+3. Run one final whole-branch review using `superpowers:requesting-code-review` from merge base `73ec1a9` to final HEAD. Use the best available reviewer; earlier `gpt-6-astra` workers hit usage limits, so `gpt-5.6-sol` high is an acceptable fallback.
+4. Allow at most one final fix wave, then scoped re-review.
+5. Use `superpowers:verification-before-completion` and `superpowers:finishing-a-development-branch`. Adapt the latter to the repository's explicit direct-`main` workflow.
+6. Delete only this plan's `.superpowers/sdd/2026-09-16-m4-clockwork-aqueduct` workspace after final review/recording.
+7. Push final docs and leave `main...origin/main` clean.
+
+Expected final documentation commit title: `docs: record Clockwork and Aqueduct completion`.
+
+## User's level-design priorities
+
+Treat these as acceptance criteria, not suggestions:
+
+- No impossible wall jumps or machinery transfers.
+- Keep wall-jump shafts short and ordinary.
+- No platforms underneath checkpoints unless they serve a clear recovery purpose.
+- No useless jumps, filler platforms, dead paths, or branches leading nowhere.
+- Platforms should meet cleanly and should not look shoved into each other.
+- Checkpoints belong on broad, flat, safe areas.
+- Routes should read continuously from bottom to top.
+- The two new stages should feel continuous with Moss Ruins, without portals or loading screens.
+
+Do not request or use Apple Music, Spotify, or any unrelated plugin. A prior accidental access request confused the user; this project uses synthesized Web Audio only.
+
+## Run and control reference
 
 ```bash
 npm install
-npm run dev          # Vite dev server (the .claude/launch.json "dev" config uses port 5173)
-npm test             # vitest run
-npm run typecheck    # tsc --noEmit
-npm run build        # tsc --noEmit && vite build
+npm run dev
+npm test
+npm run typecheck
+npm run build
+git diff --check
 ```
 
-- **Versions:** TypeScript 5.9, Vite 8, Vitest 5, Node 25. Vitest's engines field doesn't list Node 25, but it works.
-- **Controls:**
-  - Move: arrows or WASD
-  - Jump: Space or C
-  - Dash: Shift or X
-  - Pause/resume: Escape
-  - Respawn: R
-  - Debug overlay: `` ` ``
-  - Slow motion: T (0.25×)
-  - Noclip: N
-  - Toggle Normal/Hard: M
-  - Previous/next section: `[` / `]`
+Controls:
 
-## Architecture in brief
+- Move: arrows or WASD
+- Jump / swim stroke: Space or C
+- Dash: Shift or X
+- Pause: Escape
+- Respawn: R
+- Debug overlay: backquote
+- Slow motion: T
+- Noclip: N
+- Toggle Normal/Hard: M
+- Previous/next section: `[` / `]`
 
-- `src/core/`
-  - `constants.ts`: every tuning number
-  - `loop.ts`: `FixedStep`, a 120 Hz accumulator with a 0.25 s clamp
-  - `input.ts`: `InputTracker` edge detection, gamepad support, `withoutPresses` for the second and later steps in a frame
-  - `settings.ts`: validated defaults, persistent settings, and collision-free two-slot key rebinding
-  - `save.ts`: versioned local save validation, partial recovery, and unavailable-storage fallback
-  - `camera.ts`: exponential follow, eased fall lead, shake
-- `src/physics/`
-  - `aabb.ts` and `collision.ts`: axis-separated AABB (X then Y), ceiling corner nudge, one-way filtering, and slope sampling
-  - `player.ts`: `stepPlayer`. Its order is:
-    1. tickTimers
-    2. dash start/update, otherwise horizontal movement + gravity
-    3. tryJump
-    4. jump cut
-    5. moveAndResolve
-    6. refillDash
-- `src/stages/types.ts`, `world.ts`: data contracts, local-to-world stacking, validation, and camera ±1-section activation.
-- `src/stages/stage01-moss.ts`: all seven Moss Ruins section definitions.
-- `src/entities/`: entity interface, mushroom, prompt trigger, and factory.
-- `src/modes/`: Normal/Hard run state and pure mode rules.
-- `src/game/game.ts`: gameplay orchestrator for world, player, entities, checkpoints, modes, prompts, banner, warps, and noclip.
-- `src/app/controller.ts`: title/mode/pause/settings state, confirmations, Continue restore, and autosave policy.
-- `src/audio/audio.ts`: fault-tolerant Web Audio manager, synthesized SFX, and adaptive ambience.
-- `src/render/`: parallax, surface/entity/checkpoint drawing, player drawing, and effects. Canvas 2D with no engine.
-- `src/ui/`: HUD formatting/drawing, move prompts, stage banner, and semantic HTML menu/settings UI.
-- `src/debug/overlay.ts`: debug readout, slow-motion, noclip/mode/warp commands.
-- `src/main.ts`: thin browser wiring for resize/DPR, input, fixed-step loop, app/menu state, saves, audio, camera/effects, interpolation, and draw order.
-- `tests/`: mirrors `src/`; the old test-room route tests remain as movement-regression coverage.
-
-**Coordinates:** the logical view is 960×540, y points down, scaled by `scale × devicePixelRatio`.
-
-**Collision preconditions** (tests rely on these):
-- the box starts clear of solids
-- it moves less than its own size per step
-- solids use integer coordinates and are at least 12 thick
-
-## Movement rules worth knowing (spec §3)
-
-- **Jump:** coyote time 0.1 s, jump buffer 0.12 s, releasing early cuts the jump (×0.45), apex about 160 units.
-- **Wall slide:** only while holding toward the wall, capped at 160 u/s.
-- **Wall jump:** 330 u/s away and 820 u/s up, with 0.15 s of reduced air control. The same wall side can't be wall-jumped again until you land.
-- **Dash:** 720 u/s for exactly 18 physics steps with no gravity, keeping 60% of the speed at the end.
-  - It has 1 charge. The charge refills on landing, and once per wall side per airtime while wall sliding.
-  - A ground dash has a 0.4 s cooldown and ignores down-aim.
-  - A neutral air dash against a wall goes away from the wall.
-  - A jump cancels the dash.
-- **Anti-exploit:** a single wall must never be climbable forever. There's a test for this. Keep it passing whenever you change dash or wall rules.
-
-## How the user wants work done
-
-- **TDD** for all game logic: failing test first, then code. Rendering is checked visually.
-- **Commit and push directly to `main`.** No pull requests, no feature branches pushed.
-- **Keep explanations simple.** The user once asked to "explain it simpler". Short, plain-language summaries.
-- The user playtests by feel and gives direct feedback ("took me 8 tries", "just remove it"). Make tuning changes quickly, and shelve rather than delete work they reject.
-- The visual style is a moody, flat look (ember forge, frost peaks, a glowing cube hero), more detailed than the reference and not copied. The spec's §6 covers it.
-- End commit messages with the attribution trailer your harness gives you.
-
-## Gotchas
-
-- **Browser testing:** synthetic key presses from browser automation tools can arrive with an empty `e.code`, which the game ignores. Dispatch `KeyboardEvent`s with `code` set via JavaScript instead. Also release held keys between tests, or a "held" jump blocks the next press.
-- **Hot reload:** the Vite dev server picks up local commits immediately. The user may be playtesting unpushed work.
-- **Commit trailers:** some older commits carry a wrong model name. Fixing that needs a force-push to `main`; don't do it unless the user explicitly asks.
-
-## Open offers (unanswered by the user; don't act without a yes)
-
-- Delete the stale remote branch `origin/m1-movement-feel`, which is already merged.
-- Fix the mis-attributed commit trailers (needs a force-push).
+The in-app browser currently has the local preview open. During the last spot check, the saved Normal run resumed in Clockwork Section 7 and the debug overlay was enabled; no save was replaced.
