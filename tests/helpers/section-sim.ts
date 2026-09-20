@@ -311,6 +311,8 @@ export function* jumpCandidates(sim: SectionSim, target: () => AABB, options: Ju
 export interface SwimShape {
   riseX: number;
   cadence: number;
+  /** Hold strokes until near riseX so a current-opposed swim can pass under a dash wall. */
+  dive?: boolean;
 }
 
 /**
@@ -329,7 +331,8 @@ export function swimPolicy(target: (sim: SectionSim) => AABB, shape: SwimShape):
     }
     const delta = shape.riseX - player.x;
     const moveX = Math.abs(delta) < 3 ? 0 : Math.sign(delta) as -1 | 1;
-    const stroke = sim.inWater() && frame - lastStroke >= shape.cadence;
+    const atRise = !shape.dive || Math.abs(delta) < 40;
+    const stroke = atRise && sim.inWater() && frame - lastStroke >= shape.cadence;
     if (stroke) lastStroke = frame;
     return input({ moveX, jump: stroke, jumpPressed: stroke });
   };
@@ -338,8 +341,10 @@ export function swimPolicy(target: (sim: SectionSim) => AABB, shape: SwimShape):
 export function* swimCandidates(target: (sim: SectionSim) => AABB, riseXs: number[], maxFrames = 2_400): Generator<Candidate> {
   for (const riseX of riseXs) {
     for (const cadence of [20, 27, 34, 44]) {
-      const shape = { riseX, cadence };
-      yield { label: `swim ${JSON.stringify(shape)}`, maxFrames, make: () => swimPolicy(target, shape) };
+      for (const dive of [false, true]) {
+        const shape = { riseX, cadence, dive };
+        yield { label: `swim ${JSON.stringify(shape)}`, maxFrames, make: () => swimPolicy(target, shape) };
+      }
     }
   }
 }

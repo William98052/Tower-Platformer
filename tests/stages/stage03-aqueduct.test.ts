@@ -155,8 +155,10 @@ const ROUTES: Leg[][] = SECTIONS.map((section, index) => {
         jump(section, 24, 70),
       ];
       case 1: return [
-        swim(section, 730, 270, [680, 700, 720, 740]),
-        swim(section, 24, 70, [80, 50, 110, 260]),
+        swim(section, 500, 330, [470, 480, 460, 490]),
+        jump(section, 360, 250, true),
+        jump(section, 440, 200),
+        swim(section, 720, 70, [700, 690, 680, 710]),
       ];
       case 2: return [
         { kind: 'jump', to: crateTarget(section, 0) },
@@ -344,6 +346,15 @@ describe('STAGE_03_AQUEDUCT', () => {
     const [intro, currents, crateBasin, wheel, vertical, switchback, finale] = SECTIONS;
     expect(waters(intro).map((field) => [field.currentX, field.currentY])).toEqual([[0, 0]]);
     expect(waters(currents).map((field) => [field.currentX, field.currentY])).toEqual([[260, 0], [-260, 0]]);
+    const canalSwims = ROUTES[1].filter((leg): leg is Extract<Leg, { kind: 'swim' }> => leg.kind === 'swim');
+    expect(canalSwims).toHaveLength(2);
+    const firstBank = canalSwims[0].fixed!;
+    const secondExit = canalSwims[1].fixed!;
+    const secondEnter = ROUTES[1].slice(0, ROUTES[1].indexOf(canalSwims[1]))
+      .filter((leg): leg is Leg & { fixed: SolidDef } => 'fixed' in leg && leg.fixed !== undefined)
+      .at(-1)!.fixed;
+    expect(firstBank.x, '+260 canal is a rightward assisting swim').toBeGreaterThan(dryRunway(currents)!.solid.x);
+    expect(secondExit.x, '−260 canal is a rightward opposing swim').toBeGreaterThan(secondEnter.x);
     expect(crates(crateBasin)).toHaveLength(3);
     expect(wheels(wheel)).toHaveLength(1);
     expect(crates(vertical)).toHaveLength(2);
@@ -426,7 +437,7 @@ describe('STAGE_03_AQUEDUCT', () => {
           const target = floorExit ? (leftDry.w > rightDry.w ? leftDry : rightDry) : exit;
           const riseXs = floorExit
             ? [target.x + target.w / 2]
-            : [exit.x - PLAYER_SIZE - 6, exit.x + exit.w + 6, exit.x + exit.w - 60];
+            : [exit.x - PLAYER_SIZE - 6, exit.x + 24, exit.x + 60, exit.x + exit.w + 6, exit.x + exit.w - 60];
           const result = searchLeg(start, swimCandidates(() => target, riseXs), (sim) => landedOn(sim.player, target) && !sim.inWater());
           if (result.ok) {
             reached = true;

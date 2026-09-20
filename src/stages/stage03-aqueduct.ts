@@ -35,26 +35,27 @@ export const STAGE_03_AQUEDUCT: StageDef = {
       water(24, 300, 376, 360),
     ]),
 
-    // 2. +260 canal climbs 390 to a 160 bank (dash cannot finish the crossing). A slide wall holds
-    //    the swimmer on the exit face. The -260 canal is a wide leftward swim; gap > 420 from the
-    //    bank so jump+dash cannot skip it. Banks stay off the side walls (no wall-jump column).
+    // 2. +260 canal climbs 330 to a 160 bank. Stairs lead left to a drop-in; the -260 canal
+    //    is a rightward opposing swim. A top slab clips dry up-dashes; dive under it to emerge.
     section(1, 220, [
       platform(120, 660, 300),
-      platform(420, 660, 310),
-      platform(730, 270, 160),
-      platform(304, 270, 116),
-      platform(24, 70, 280),
-      gate(714, 286, 16, 374),
-      gate(304, 86, 16, 184),
+      platform(420, 660, 80),
+      platform(500, 330, 160),
+      platform(360, 250, 80),
+      platform(440, 200, 80),
+      platform(720, 70, 216),
+      gate(484, 346, 16, 314),
+      gate(520, 270, 280, 16),
+      gate(24, 0, 626, 100),
     ], [
-      water(420, 270, 310, 390, 260),
-      water(304, 70, 426, 200, -260),
+      water(420, 330, 80, 330, 260),
+      water(520, 86, 280, 184, -260),
     ]),
 
-    // 3. Three rising crates over a flush recovery floor. Runway sits under Section 2's left exit.
-    section(2, 220, [
-      platform(120, 660, 300),
-      platform(420, 660, 396, 'normal', 'recovery'),
+    // 3. Three rising crates over a flush recovery floor. Runway sits under Section 2's right exit.
+    section(2, 600, [
+      platform(460, 660, 300),
+      platform(24, 660, 436, 'normal', 'recovery'),
       platform(200, 260, 240),
       platform(480, 165, 220),
       platform(720, 70, 216),
